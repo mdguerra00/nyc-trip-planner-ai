@@ -163,6 +163,16 @@ const ProgramDetail = () => {
       updatedFaq[index].details = data.details;
       updatedFaq[index].loadingDetails = false;
       setAiFaq(updatedFaq);
+
+      // Save updated FAQ to database
+      const { error: updateError } = await supabase
+        .from("programs")
+        .update({ ai_faq: updatedFaq })
+        .eq("id", program.id);
+
+      if (updateError) {
+        console.error("Erro ao salvar detalhes:", updateError);
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao explorar tópico",
@@ -221,9 +231,11 @@ const ProgramDetail = () => {
             <div>
               <h1 className="text-2xl font-bold">{program.title}</h1>
               <p className="text-sm text-muted-foreground">
-                {format(new Date(program.date), "dd 'de' MMMM 'de' yyyy", {
-                  locale: ptBR,
-                })}
+                {(() => {
+                  const [year, month, day] = program.date.split('-').map(Number);
+                  const localDate = new Date(year, month - 1, day);
+                  return format(localDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+                })()}
               </p>
             </div>
           </div>
