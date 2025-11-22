@@ -61,19 +61,21 @@ const Calendar = () => {
     if (data) {
       setPrograms(data);
       const formattedEvents = data.map((program) => {
-        const date = new Date(program.date);
+        // Parse date in local timezone to avoid timezone shift issues
+        const [year, month, day] = program.date.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
         let start = date;
         let end = new Date(date);
         
         if (program.start_time) {
           const [hours, minutes] = program.start_time.split(":");
-          start = new Date(date);
+          start = new Date(year, month - 1, day);
           start.setHours(parseInt(hours), parseInt(minutes));
         }
         
         if (program.end_time) {
           const [hours, minutes] = program.end_time.split(":");
-          end = new Date(date);
+          end = new Date(year, month - 1, day);
           end.setHours(parseInt(hours), parseInt(minutes));
         } else {
           end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour default
