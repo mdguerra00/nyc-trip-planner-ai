@@ -109,14 +109,22 @@ const ProgramDetail = () => {
   const deleteProgram = async () => {
     if (!program) return;
 
+    console.log("Deletando programa:", program.id);
+    
     const { error } = await supabase
       .from("programs")
       .delete()
       .eq("id", program.id);
 
     if (error) {
-      toast({ title: "Erro ao deletar programa", variant: "destructive" });
+      console.error("Erro ao deletar:", error);
+      toast({ 
+        title: "Erro ao deletar programa", 
+        description: error.message,
+        variant: "destructive" 
+      });
     } else {
+      console.log("Programa deletado com sucesso");
       toast({ title: "Programa deletado com sucesso!" });
       navigate("/");
     }
