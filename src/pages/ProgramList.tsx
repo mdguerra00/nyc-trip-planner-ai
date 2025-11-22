@@ -92,9 +92,11 @@ const ProgramList = () => {
                     <CardTitle className="flex items-start justify-between">
                       <span>{program.title}</span>
                       <span className="text-sm font-normal text-muted-foreground">
-                        {format(new Date(program.date), "dd 'de' MMM", {
-                          locale: ptBR,
-                        })}
+                        {(() => {
+                          const [year, month, day] = program.date.split('-').map(Number);
+                          const localDate = new Date(year, month - 1, day);
+                          return format(localDate, "dd 'de' MMM", { locale: ptBR });
+                        })()}
                       </span>
                     </CardTitle>
                   </CardHeader>
