@@ -17,6 +17,8 @@ export type Database = {
       programs: {
         Row: {
           address: string | null
+          ai_faq: Json | null
+          ai_suggestions: string | null
           created_at: string
           date: string
           description: string | null
@@ -30,6 +32,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_faq?: Json | null
+          ai_suggestions?: string | null
           created_at?: string
           date: string
           description?: string | null
@@ -43,6 +47,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_faq?: Json | null
+          ai_suggestions?: string | null
           created_at?: string
           date?: string
           description?: string | null

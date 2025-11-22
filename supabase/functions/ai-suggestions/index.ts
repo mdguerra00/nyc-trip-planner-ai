@@ -50,6 +50,13 @@ FOQUE NA REGIÃO E ARREDORES desta atividade e forneça:
 - O que não deixar de ver/fazer no local
 - Cuidados ou informações importantes
 
+IMPORTANTE - RESPONSABILIDADE E SEGURANÇA:
+- Seja factual e baseie-se apenas em informações verificáveis e confiáveis
+- NÃO invente estabelecimentos, endereços ou informações que você não tem certeza
+- Se não tiver informações específicas sobre a região, seja honesto e forneça dicas gerais
+- Priorize segurança: mencione áreas seguras e horários adequados
+- Use conhecimento geral sobre Nova York de fontes confiáveis
+
 Seja específico sobre a REGIÃO e organize as informações de forma clara e prática. Mantenha o tom amigável e útil, em português brasileiro.`;
 
     console.log("Calling AI with prompt:", prompt);
