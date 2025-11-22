@@ -20,23 +20,37 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY not configured");
     }
 
-    const prompt = `Você é um guia turístico especializado em Nova York. 
-    
+    const prompt = `Você é um guia turístico local especializado em Nova York com conhecimento profundo sobre bairros, atrações e experiências autênticas da cidade.
+
 Um turista planejou a seguinte atividade:
 Título: ${program.title}
 ${program.description ? `Descrição: ${program.description}` : ""}
 ${program.address ? `Local: ${program.address}` : ""}
 ${program.start_time ? `Horário: ${program.start_time}` : ""}
 
-Por favor, forneça informações úteis e interessantes sobre esta atividade, incluindo:
-- Dicas práticas para aproveitar melhor
-- Informações sobre o local
-- O que não deixar de ver/fazer
-- Sugestões de lugares próximos interessantes
-- Dicas de horários ideais se aplicável
-- Qualquer informação relevante que enriqueça a experiência
+FOQUE NA REGIÃO E ARREDORES desta atividade e forneça:
 
-Seja conciso mas informativo, em português brasileiro.`;
+📍 **Sobre o Local**:
+- Contexto e história interessante do lugar ou bairro
+- Características únicas da região
+- Melhor forma de chegar (metrô, ônibus, caminhada)
+
+🎯 **Outras Atrações Próximas** (no raio de 10-15 minutos):
+- 3-4 pontos turísticos ou atrações interessantes
+- Parques, monumentos ou locais fotogênicos
+- Lojas ou experiências únicas da área
+
+🍽️ **Gastronomia Local**:
+- Restaurantes típicos ou imperdíveis da região
+- Cafés ou bares interessantes
+- Opções de street food ou lancherias locais
+
+💡 **Dicas Práticas**:
+- Melhor horário para visitar e evitar multidões
+- O que não deixar de ver/fazer no local
+- Cuidados ou informações importantes
+
+Seja específico sobre a REGIÃO e organize as informações de forma clara e prática. Mantenha o tom amigável e útil, em português brasileiro.`;
 
     console.log("Calling AI with prompt:", prompt);
 
