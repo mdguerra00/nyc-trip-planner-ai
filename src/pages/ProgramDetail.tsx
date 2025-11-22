@@ -30,6 +30,8 @@ interface Program {
   end_time?: string;
   address?: string;
   notes?: string;
+  ai_suggestions?: string | null;
+  ai_faq?: any;
 }
 
 const ProgramDetail = () => {
@@ -37,6 +39,7 @@ const ProgramDetail = () => {
   const [program, setProgram] = useState<Program | null>(null);
   const [notes, setNotes] = useState("");
   const [aiSuggestions, setAiSuggestions] = useState("");
+  const [aiFaq, setAiFaq] = useState<Array<{ question: string; answer: string; details?: string; loadingDetails?: boolean }>>([]);
   const [loadingAi, setLoadingAi] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -65,6 +68,10 @@ const ProgramDetail = () => {
     if (data) {
       setProgram(data);
       setNotes(data.notes || "");
+      setAiSuggestions(data.ai_suggestions || "");
+      if (data.ai_faq && Array.isArray(data.ai_faq)) {
+        setAiFaq(data.ai_faq as Array<{ question: string; answer: string }>);
+      }
     }
   };
 
@@ -88,13 +95,43 @@ const ProgramDetail = () => {
 
     setLoadingAi(true);
     try {
+      // Get AI suggestions
       const { data, error } = await supabase.functions.invoke("ai-suggestions", {
         body: { program },
       });
 
       if (error) throw error;
 
-      setAiSuggestions(data.suggestions);
+      const suggestions = data.suggestions;
+      setAiSuggestions(suggestions);
+
+      // Generate FAQ based on suggestions
+      const { data: faqData, error: faqError } = await supabase.functions.invoke(
+        "generate-faq",
+        {
+          body: { suggestions },
+        }
+      );
+
+      if (faqError) throw faqError;
+
+      const faq = faqData.faq;
+      setAiFaq(faq);
+
+      // Save to database
+      const { error: updateError } = await supabase
+        .from("programs")
+        .update({ 
+          ai_suggestions: suggestions,
+          ai_faq: faq
+        })
+        .eq("id", program.id);
+
+      if (updateError) {
+        console.error("Erro ao salvar sugestões:", updateError);
+      }
+
+      toast({ title: "Informações geradas com sucesso!" });
     } catch (error: any) {
       toast({
         title: "Erro ao buscar sugestões",
@@ -103,6 +140,37 @@ const ProgramDetail = () => {
       });
     } finally {
       setLoadingAi(false);
+    }
+  };
+
+  const exploreTopic = async (index: number, question: string, answer: string) => {
+    if (!program || !aiSuggestions) return;
+
+    const updatedFaq = [...aiFaq];
+    updatedFaq[index].loadingDetails = true;
+    setAiFaq(updatedFaq);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("explore-topic", {
+        body: {
+          topic: `${question}\n${answer}`,
+          context: aiSuggestions,
+        },
+      });
+
+      if (error) throw error;
+
+      updatedFaq[index].details = data.details;
+      updatedFaq[index].loadingDetails = false;
+      setAiFaq(updatedFaq);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao explorar tópico",
+        description: error.message,
+        variant: "destructive",
+      });
+      updatedFaq[index].loadingDetails = false;
+      setAiFaq(updatedFaq);
     }
   };
 
@@ -246,22 +314,71 @@ const ProgramDetail = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-secondary" />
-                Sugestões com IA
+                Informações com IA
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button
-                onClick={getAiSuggestions}
-                disabled={loadingAi}
-                className="w-full"
-                variant="secondary"
-              >
-                {loadingAi ? "Buscando sugestões..." : "Buscar Informações com IA"}
-              </Button>
+              {!aiSuggestions && (
+                <Button
+                  onClick={getAiSuggestions}
+                  disabled={loadingAi}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  {loadingAi ? "Gerando informações..." : "Gerar Informações sobre a Região"}
+                </Button>
+              )}
+              
               {aiSuggestions && (
-                <div className="mt-4 p-4 bg-muted rounded-lg">
-                  <p className="whitespace-pre-wrap">{aiSuggestions}</p>
-                </div>
+                <>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h3 className="font-semibold mb-2">Sobre a Região</h3>
+                    <p className="whitespace-pre-wrap text-sm">{aiSuggestions}</p>
+                  </div>
+
+                  {aiFaq.length > 0 && (
+                    <div className="mt-6 space-y-4">
+                      <h3 className="font-semibold text-lg">Perguntas Frequentes</h3>
+                      {aiFaq.map((item, index) => (
+                        <div key={index} className="border rounded-lg p-4 space-y-3">
+                          <h4 className="font-semibold text-primary">{item.question}</h4>
+                          <p className="text-sm text-muted-foreground">{item.answer}</p>
+                          
+                          {item.details && (
+                            <div className="mt-3 p-3 bg-secondary/10 rounded-lg border-l-4 border-secondary">
+                              <p className="text-sm whitespace-pre-wrap">{item.details}</p>
+                            </div>
+                          )}
+                          
+                          <Button
+                            onClick={() => exploreTopic(index, item.question, item.answer)}
+                            disabled={item.loadingDetails}
+                            size="sm"
+                            variant="outline"
+                            className="w-full mt-2"
+                          >
+                            <Sparkles className="w-3 h-3 mr-2" />
+                            {item.loadingDetails
+                              ? "Explorando..."
+                              : item.details
+                              ? "Atualizar Detalhes"
+                              : "Explorar Mais Sobre Isso"}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={getAiSuggestions}
+                    disabled={loadingAi}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-4"
+                  >
+                    {loadingAi ? "Gerando..." : "Regenerar Informações"}
+                  </Button>
+                </>
               )}
             </CardContent>
           </Card>
