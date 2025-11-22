@@ -1,0 +1,203 @@
+import { useState, useEffect } from "react";
+import { Calendar as BigCalendar, momentLocalizer, Event } from "react-big-calendar";
+import moment from "moment";
+import "react-big-calendar/lib/css/react-big-calendar.css";
+import "@/styles/calendar.css";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Plus, LogOut, List, Calendar as CalendarIcon } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { ProgramDialog } from "@/components/ProgramDialog";
+import { motion } from "framer-motion";
+
+moment.locale("pt-br");
+const localizer = momentLocalizer(moment);
+
+interface Program {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  start_time?: string;
+  end_time?: string;
+  address?: string;
+  notes?: string;
+}
+
+const Calendar = () => {
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    checkAuth();
+    loadPrograms();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      navigate("/auth");
+    }
+  };
+
+  const loadPrograms = async () => {
+    const { data, error } = await supabase
+      .from("programs")
+      .select("*")
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      toast({ title: "Erro ao carregar programas", variant: "destructive" });
+      return;
+    }
+
+    if (data) {
+      setPrograms(data);
+      const formattedEvents = data.map((program) => {
+        const date = new Date(program.date);
+        let start = date;
+        let end = new Date(date);
+        
+        if (program.start_time) {
+          const [hours, minutes] = program.start_time.split(":");
+          start = new Date(date);
+          start.setHours(parseInt(hours), parseInt(minutes));
+        }
+        
+        if (program.end_time) {
+          const [hours, minutes] = program.end_time.split(":");
+          end = new Date(date);
+          end.setHours(parseInt(hours), parseInt(minutes));
+        } else {
+          end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour default
+        }
+
+        return {
+          title: program.title,
+          start,
+          end,
+          resource: program,
+        };
+      });
+      setEvents(formattedEvents);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
+  const handleSelectSlot = ({ start }: { start: Date }) => {
+    setSelectedDate(start);
+    setEditingProgram(null);
+    setDialogOpen(true);
+  };
+
+  const handleSelectEvent = (event: Event) => {
+    setEditingProgram(event.resource as Program);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+    setEditingProgram(null);
+    setSelectedDate(null);
+    loadPrograms();
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <motion.header 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="border-b bg-card shadow-soft"
+      >
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary rounded-lg">
+              <CalendarIcon className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Viagem NYC</h1>
+              <p className="text-sm text-muted-foreground">Planeje sua aventura</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/list")}
+            >
+              <List className="w-4 h-4 mr-2" />
+              Lista
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setSelectedDate(new Date());
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </motion.header>
+
+      <main className="container mx-auto px-4 py-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-card rounded-xl shadow-card p-6"
+          style={{ height: "calc(100vh - 200px)" }}
+        >
+          <BigCalendar
+            localizer={localizer}
+            events={events}
+            onSelectSlot={handleSelectSlot}
+            onSelectEvent={handleSelectEvent}
+            selectable
+            views={["month", "week", "day", "agenda"]}
+            defaultView="month"
+            messages={{
+              next: "Próximo",
+              previous: "Anterior",
+              today: "Hoje",
+              month: "Mês",
+              week: "Semana",
+              day: "Dia",
+              agenda: "Agenda",
+              date: "Data",
+              time: "Hora",
+              event: "Evento",
+              noEventsInRange: "Nenhum evento neste período",
+            }}
+          />
+        </motion.div>
+      </main>
+
+      <ProgramDialog
+        open={dialogOpen}
+        onClose={handleDialogClose}
+        program={editingProgram}
+        selectedDate={selectedDate}
+      />
+    </div>
+  );
+};
+
+export default Calendar;

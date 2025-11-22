@@ -1,0 +1,89 @@
+.rbc-calendar {
+  font-family: inherit;
+}
+
+.rbc-header {
+  padding: 12px 6px;
+  font-weight: 600;
+  border-bottom: 2px solid hsl(var(--border));
+  background: hsl(var(--muted));
+}
+
+.rbc-today {
+  background-color: hsl(var(--accent) / 0.1);
+}
+
+.rbc-event {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 6px;
+  padding: 4px 8px;
+  border: none;
+  transition: var(--transition-smooth);
+}
+
+.rbc-event:hover {
+  background-color: hsl(var(--primary) / 0.9);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+
+.rbc-event-label {
+  font-size: 11px;
+}
+
+.rbc-event-content {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rbc-month-view {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rbc-day-bg:hover {
+  background-color: hsl(var(--muted) / 0.5);
+  cursor: pointer;
+}
+
+.rbc-selected-cell {
+  background-color: hsl(var(--secondary) / 0.2);
+}
+
+.rbc-toolbar {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.rbc-toolbar button {
+  padding: 8px 16px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-radius: 6px;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+}
+
+.rbc-toolbar button:hover {
+  background: hsl(var(--muted));
+}
+
+.rbc-toolbar button.rbc-active {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+.rbc-date-cell {
+  padding: 8px;
+}
+
+.rbc-off-range-bg {
+  background: hsl(var(--muted) / 0.3);
+}
