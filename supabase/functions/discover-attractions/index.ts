@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { region, date } = await req.json();
+    const { region, date, userSuggestion, requestMore } = await req.json();
 
     if (!region || !date) {
       return new Response(
@@ -29,9 +29,45 @@ serve(async (req) => {
       );
     }
 
-    console.log(`🔍 Searching attractions for ${region} on ${date}`);
+    console.log(`🔍 Searching attractions for ${region} on ${date}`, { userSuggestion, requestMore });
 
-    const prompt = `Liste as principais atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}.
+    let prompt: string;
+
+    if (userSuggestion) {
+      // User-specific suggestion
+      prompt = `Busque informações detalhadas sobre "${userSuggestion}" em Nova York, considerando a região de ${region} e a data ${date}.
+
+Para este local específico, forneça EXATAMENTE as seguintes informações em formato JSON:
+- name: nome completo oficial
+- type: tipo (atração, restaurante, evento, museu, parque, etc)
+- address: endereço completo com CEP se possível
+- hours: horário de funcionamento para o dia ${date}
+- description: descrição detalhada (3-4 linhas)
+- estimatedDuration: tempo estimado de visita em minutos
+- neighborhood: bairro específico
+- imageUrl: URL de uma foto representativa do local (busque no Google Images ou site oficial - forneça URL direta da imagem)
+- infoUrl: URL do site oficial ou página do Google Maps com mais informações
+
+Se não existir ou não encontrar informações, retorne um array vazio []. Caso contrário, retorne um array JSON válido com 1-3 resultados (incluindo variações ou locais similares se relevante). Não inclua texto adicional, apenas o JSON.`;
+    } else if (requestMore) {
+      // Request for additional suggestions
+      prompt = `Liste OUTRAS atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}. Busque opções DIFERENTES e menos conhecidas, incluindo joias escondidas e lugares únicos.
+
+Para cada item, forneça EXATAMENTE as seguintes informações em formato JSON:
+- name: nome completo
+- type: tipo (atração, restaurante, evento, museu, parque, etc)
+- address: endereço completo com CEP se possível
+- hours: horário de funcionamento típico
+- description: breve descrição (2-3 linhas)
+- estimatedDuration: tempo estimado de visita em minutos
+- neighborhood: bairro específico
+- imageUrl: URL de uma foto representativa do local (busque no Google Images ou site oficial - forneça URL direta da imagem)
+- infoUrl: URL do site oficial ou página do Google Maps com mais informações sobre o local
+
+Retorne um array JSON válido com 6-10 sugestões DIFERENTES das principais. Não inclua texto adicional, apenas o JSON.`;
+    } else {
+      // Standard discovery
+      prompt = `Liste as principais atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}.
 
 Para cada item, forneça EXATAMENTE as seguintes informações em formato JSON:
 - name: nome completo
@@ -45,6 +81,7 @@ Para cada item, forneça EXATAMENTE as seguintes informações em formato JSON:
 - infoUrl: URL do site oficial ou página do Google Maps com mais informações sobre o local
 
 Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, restaurantes, eventos). Não inclua texto adicional, apenas o JSON.`;
+    }
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',

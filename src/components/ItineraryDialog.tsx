@@ -53,6 +53,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
   const [attractions, setAttractions] = useState<Attraction[]>([]);
   const [selectedAttractions, setSelectedAttractions] = useState<string[]>([]);
   const [loadingAttractions, setLoadingAttractions] = useState(false);
+  const [userSuggestion, setUserSuggestion] = useState("");
   
   // Step 3: Organization
   const [organizedPrograms, setOrganizedPrograms] = useState<OrganizedProgram[]>([]);
@@ -74,7 +75,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
     setWarnings([]);
   };
 
-  const handleDiscoverAttractions = async () => {
+  const handleDiscoverAttractions = async (appendMode = false) => {
     if (!region || !date) {
       toast({
         title: "Campos obrigatórios",
@@ -98,12 +99,12 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       return;
     }
 
-    console.log('🔍 DEBUG - Discovering attractions:', { region, date, dateTimestamp });
+    console.log('🔍 DEBUG - Discovering attractions:', { region, date, dateTimestamp, appendMode });
 
     setLoadingAttractions(true);
     try {
       const { data, error } = await supabase.functions.invoke('discover-attractions', {
-        body: { region, date }
+        body: { region, date, requestMore: appendMode }
       });
 
       if (error) throw error;
@@ -112,18 +113,71 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
         throw new Error(data.error);
       }
 
-      setAttractions(data.attractions || []);
-      setStep(2);
+      const newAttractions = data.attractions || [];
+      
+      if (appendMode) {
+        // Add to existing attractions
+        setAttractions(prev => [...prev, ...newAttractions]);
+      } else {
+        // Replace attractions
+        setAttractions(newAttractions);
+        setStep(2);
+      }
       
       toast({
-        title: "🔍 Atrações descobertas!",
-        description: `Encontramos ${data.attractions?.length || 0} sugestões para ${region}`,
+        title: appendMode ? "✨ Mais sugestões encontradas!" : "🔍 Atrações descobertas!",
+        description: `${newAttractions.length} ${appendMode ? 'novas' : ''} sugestões para ${region}`,
       });
 
     } catch (error: any) {
       console.error('Error discovering attractions:', error);
       toast({
         title: "Erro ao buscar atrações",
+        description: error.message || "Tente novamente",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAttractions(false);
+    }
+  };
+
+  const handleAddUserSuggestion = async () => {
+    if (!userSuggestion.trim()) {
+      toast({
+        title: "Digite uma sugestão",
+        description: "Informe o nome do local que deseja adicionar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoadingAttractions(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('discover-attractions', {
+        body: { region, date, userSuggestion: userSuggestion.trim() }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const newAttractions = data.attractions || [];
+      
+      // Add to existing attractions
+      setAttractions(prev => [...prev, ...newAttractions]);
+      setUserSuggestion("");
+      
+      toast({
+        title: "✅ Sugestão adicionada!",
+        description: `${newAttractions.length} atração(ões) encontrada(s) para "${userSuggestion}"`,
+      });
+
+    } catch (error: any) {
+      console.error('Error adding user suggestion:', error);
+      toast({
+        title: "Erro ao adicionar sugestão",
         description: error.message || "Tente novamente",
         variant: "destructive",
       });
@@ -406,7 +460,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
             </div>
 
             <Button 
-              onClick={handleDiscoverAttractions}
+              onClick={() => handleDiscoverAttractions()}
               disabled={loadingAttractions || !region || !date}
               className="w-full"
             >
@@ -428,15 +482,54 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
         {/* Step 2: Select Attractions */}
         {step === 2 && (
           <div className="space-y-4 py-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <Search className="w-3 h-3" />
-                Perplexity
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                {selectedAttractions.length} de {attractions.length} selecionadas
-              </span>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Search className="w-3 h-3" />
+                  Perplexity
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  {selectedAttractions.length} de {attractions.length} selecionadas
+                </span>
+              </div>
             </div>
+
+            {/* User suggestion input */}
+            <Card className="p-4 bg-muted/30">
+              <div className="space-y-3">
+                <Label htmlFor="userSuggestion" className="text-sm font-medium">
+                  Adicionar local específico
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="userSuggestion"
+                    placeholder="Ex: Brooklyn Brewery, The Met, Central Park"
+                    value={userSuggestion}
+                    onChange={(e) => setUserSuggestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !loadingAttractions) {
+                        handleAddUserSuggestion();
+                      }
+                    }}
+                    disabled={loadingAttractions}
+                  />
+                  <Button 
+                    onClick={handleAddUserSuggestion}
+                    disabled={loadingAttractions || !userSuggestion.trim()}
+                    size="sm"
+                  >
+                    {loadingAttractions ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-1" />
+                        Adicionar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </Card>
 
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
               {attractions.map((attraction) => (
@@ -504,6 +597,18 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
             <div className="flex gap-2 pt-4">
               <Button variant="outline" onClick={() => setStep(1)}>
                 Voltar
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => handleDiscoverAttractions(true)}
+                disabled={loadingAttractions}
+              >
+                {loadingAttractions ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4 mr-2" />
+                )}
+                Sugerir Mais
               </Button>
               <Button 
                 onClick={handleOrganizeItinerary}
