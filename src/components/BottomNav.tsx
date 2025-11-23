@@ -1,4 +1,4 @@
-import { Calendar, List } from "lucide-react";
+import { Calendar, List, User } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 export function BottomNav() {
@@ -28,6 +28,16 @@ export function BottomNav() {
         >
           <List className="w-5 h-5" />
           <span className="text-xs mt-1">Lista</span>
+        </button>
+
+        <button
+          onClick={() => navigate("/profile")}
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            isActive("/profile") ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <User className="w-5 h-5" />
+          <span className="text-xs mt-1">Perfil</span>
         </button>
       </div>
     </nav>

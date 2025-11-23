@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Calendar from "./pages/Calendar";
 import ProgramList from "./pages/ProgramList";
 import ProgramDetail from "./pages/ProgramDetail";
+import TravelProfile from "./pages/TravelProfile";
 import NotFound from "./pages/NotFound";
 import { BottomNav } from "./components/BottomNav";
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/" element={<Calendar />} />
           <Route path="/list" element={<ProgramList />} />
+          <Route path="/profile" element={<TravelProfile />} />
           <Route path="/program/:id" element={<ProgramDetail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
