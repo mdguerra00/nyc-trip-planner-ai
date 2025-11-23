@@ -39,6 +39,20 @@ serve(async (req) => {
 
     const userId = user.id;
 
+    // Fetch ALL programs from the user's trip
+    const { data: allPrograms } = await supabase
+      .from('programs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true });
+
+    // Fetch trip configuration (start and end dates)
+    const { data: tripConfig } = await supabase
+      .from('trip_config')
+      .select('start_date, end_date')
+      .eq('user_id', userId)
+      .single();
+
     // Fetch previous chat messages for this program and user
     const { data: previousMessages } = await supabase
       .from('program_chat_messages')
@@ -46,76 +60,183 @@ serve(async (req) => {
       .eq('program_id', programId)
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
-      .limit(50); // Limit to last 50 messages to avoid too large context
+      .limit(50);
 
-    // Build system prompt with program context
-    const systemPrompt = `Você é um assistente turístico especializado e prestativo. Use as seguintes informações do evento para responder perguntas de forma útil e segura:
-
-Evento: ${programData.title}
-Descrição: ${programData.description}
-Local: ${programData.address}
-Data: ${programData.date}
-Horário: ${programData.start_time} - ${programData.end_time}
-
-${programData.aiSuggestions ? `Sugestões anteriores geradas:\n${programData.aiSuggestions}` : ''}
-
-Foque em fornecer informações sobre:
-- Gastronomia local e restaurantes próximos
-- Pontos turísticos e atrações na região
-- Dicas práticas de transporte e deslocamento
-- Sugestões de atividades relacionadas ao evento
-- Dicas de segurança quando relevante
-
-Seja preciso, útil e seguro. Não invente estabelecimentos ou informações. Se não souber algo específico, admita e sugira como o usuário pode pesquisar mais.`;
-
-    // Combine all messages
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...(previousMessages || []),
-      { role: 'user', content: message }
-    ];
-
-    // Call Lovable AI
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages,
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI API error:', aiResponse.status, errorText);
+    // Build complete trip context
+    const tripContext = allPrograms?.map(p => {
+      const faqText = p.ai_faq 
+        ? JSON.parse(p.ai_faq).map((q: any) => 
+            `P: ${q.question}\nR: ${q.answer}${q.details ? '\n' + q.details : ''}`
+          ).join('\n\n')
+        : '';
       
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Muitas requisições. Por favor, tente novamente em alguns instantes.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      return `
+📅 ${p.date} - ${p.title}
+📍 ${p.address || 'Local não informado'}
+⏰ ${p.start_time || ''} ${p.end_time ? '- ' + p.end_time : ''}
+📝 ${p.description || ''}
+
+${p.ai_suggestions ? `💡 Sugestões:\n${p.ai_suggestions}\n` : ''}
+${faqText ? `❓ FAQs:\n${faqText}` : ''}
+`.trim();
+    }).join('\n\n---\n\n') || '';
+
+    // Function to detect if query needs real-time information
+    const needsRealTimeInfo = (query: string): boolean => {
+      const realtimeKeywords = [
+        'agora', 'hoje', 'amanhã', 'aberto', 'fechado', 'funciona', 'horário atual',
+        'disponível', 'lotado', 'cheio', 'clima', 'tempo', 'temperatura', 'trânsito',
+        'tráfego', 'abriu', 'fechou', 'atual', 'neste momento', 'preço atual',
+        'quanto custa agora', 'está aberto', 'está funcionando'
+      ];
+      const lowerQuery = query.toLowerCase();
+      return realtimeKeywords.some(keyword => lowerQuery.includes(keyword));
+    };
+
+    // Function to call Perplexity for real-time queries
+    const callPerplexity = async (query: string, context: string) => {
+      const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+      if (!PERPLEXITY_API_KEY) {
+        throw new Error('PERPLEXITY_API_KEY not configured');
       }
-      
-      if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Limite de créditos atingido. Por favor, adicione créditos ao seu workspace.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw new Error('AI API request failed');
-    }
 
-    const aiData = await aiResponse.json();
-    const assistantMessage = aiData.choices[0].message.content;
+      const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-sonar-large-128k-online',
+          messages: [
+            {
+              role: 'system',
+              content: `Você é um assistente turístico especializado. Use informações em tempo real da web para responder.
+
+CONTEXTO DA VIAGEM DO USUÁRIO:
+${context}
+
+Forneça informações ATUALIZADAS sobre: horários, preços, disponibilidade, clima, trânsito, eventos atuais.
+Cite suas fontes quando possível. Seja preciso e útil.`
+            },
+            { role: 'user', content: query }
+          ],
+          temperature: 0.2,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Perplexity API error:', response.status, errorText);
+        throw new Error('Perplexity API request failed');
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    };
+
+    // Function to call Gemini for context-based queries
+    const callGemini = async (query: string, context: string, history: any[]) => {
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) {
+        throw new Error('LOVABLE_API_KEY not configured');
+      }
+
+      const systemPrompt = `Você é um assistente turístico especializado ajudando a planejar uma viagem.
+
+📋 CONTEXTO COMPLETO DA VIAGEM:
+${tripConfig ? `Período: ${tripConfig.start_date} a ${tripConfig.end_date}` : ''}
+
+${context}
+
+---
+
+🎯 EVENTO ATUAL SENDO VISUALIZADO:
+${programData.title} - ${programData.date}
+${programData.address}
+
+---
+
+💬 COMO RESPONDER:
+
+1. Use TODAS as informações da viagem para dar respostas contextualizadas
+2. Faça conexões entre eventos próximos (temporal e geograficamente)
+3. Sugira otimizações de roteiro quando relevante
+4. Use as FAQs geradas para enriquecer suas respostas
+5. Considere o período total da viagem nas recomendações
+6. Mencione eventos relacionados quando for útil
+
+Exemplos de perguntas que você pode responder bem:
+- "Qual o melhor restaurante perto dos eventos do dia 15?"
+- "Como ir do evento X para o evento Y?"
+- "O que fazer no tempo livre entre os eventos?"
+- "Quais eventos estão na mesma região?"
+
+Seja preciso, útil e seguro. Não invente informações. Se não souber algo específico, admita e sugira como pesquisar mais.`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: query }
+      ];
+
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('AI API error:', response.status, errorText);
+        
+        if (response.status === 429) {
+          throw new Error('RATE_LIMIT');
+        }
+        if (response.status === 402) {
+          throw new Error('PAYMENT_REQUIRED');
+        }
+        throw new Error('AI API request failed');
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    };
+
+    // Intelligent routing: Perplexity for real-time, Gemini for context
+    let assistantMessage: string;
+    try {
+      if (needsRealTimeInfo(message)) {
+        console.log('🔍 Using Perplexity for real-time query');
+        assistantMessage = await callPerplexity(message, tripContext);
+      } else {
+        console.log('🧠 Using Gemini for context-based query');
+        assistantMessage = await callGemini(message, tripContext, previousMessages || []);
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'RATE_LIMIT') {
+          return new Response(
+            JSON.stringify({ error: 'Muitas requisições. Por favor, tente novamente em alguns instantes.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (error.message === 'PAYMENT_REQUIRED') {
+          return new Response(
+            JSON.stringify({ error: 'Limite de créditos atingido. Por favor, adicione créditos ao seu workspace.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      throw error;
+    }
 
     // Save user message to database
     await supabase
