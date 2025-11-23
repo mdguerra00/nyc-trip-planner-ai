@@ -15,6 +15,7 @@ serve(async (req) => {
 
   try {
     const { message, programId, programData } = await req.json();
+    const isGlobalChat = !programId;
 
     // Get user from JWT token
     const authHeader = req.headers.get('Authorization');
@@ -55,25 +56,48 @@ serve(async (req) => {
       supabaseKey
     );
 
-    // Fetch chat history for this specific program
-    const { data: chatHistory } = await supabase
-      .from('program_chat_messages')
+    // Fetch chat history based on chat mode
+    const chatTable = isGlobalChat ? 'global_chat_messages' : 'program_chat_messages';
+    
+    let chatHistoryQuery = supabase
+      .from(chatTable)
       .select('role, content')
-      .eq('program_id', programId)
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
       .limit(50);
+    
+    if (!isGlobalChat) {
+      chatHistoryQuery = chatHistoryQuery.eq('program_id', programId);
+    }
+    
+    const { data: chatHistory } = await chatHistoryQuery;
 
-    const specificContext = `
-O usuário está conversando sobre sua viagem a Nova York.
-${programId && programData ? `
-Programa específico sendo visualizado:
-- ${programData.title} - ${programData.date}
-- ${programData.address || "Local não especificado"}
-` : "Conversando de forma geral sobre a viagem"}
+    let specificContext = `O usuário está conversando sobre sua viagem a Nova York.\n`;
 
-Você é um assistente de viagem amigável e prestativo. Responda de forma personalizada considerando TODO o contexto do viajante, respeitando suas preferências, restrições e necessidades.
-`;
+    if (isGlobalChat) {
+      // Fetch all user programs for global context
+      const { data: allPrograms } = await supabase
+        .from('programs')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: true });
+      
+      if (allPrograms && allPrograms.length > 0) {
+        specificContext += `\n📅 Programas criados pelo viajante:\n`;
+        allPrograms.forEach((p: any) => {
+          specificContext += `- ${p.title} (${p.date})${p.address ? ' - ' + p.address : ''}${p.start_time ? ' às ' + p.start_time : ''}\n`;
+        });
+      } else {
+        specificContext += `\nNenhum programa foi criado ainda. Você pode ajudar o viajante a planejar sua viagem.\n`;
+      }
+      specificContext += `\nConversando de forma GERAL sobre toda a viagem. Considere TODOS os programas ao responder.`;
+    } else {
+      specificContext += `\nPrograma específico sendo visualizado:\n`;
+      specificContext += `- ${programData.title} - ${programData.date}\n`;
+      specificContext += `- ${programData.address || "Local não especificado"}`;
+    }
+
+    specificContext += `\n\nVocê é um assistente de viagem amigável e prestativo. Responda de forma personalizada considerando TODO o contexto do viajante, respeitando suas preferências, restrições e necessidades.`;
 
     const tripContext = buildContextualPrompt(travelContext, specificContext);
 
@@ -186,24 +210,42 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
       throw error;
     }
 
-    // Save messages to database
-    await supabase
-      .from('program_chat_messages')
-      .insert({
-        program_id: programId,
-        user_id: userId,
-        role: 'user',
-        content: message
-      });
+    // Save messages to database based on chat mode
+    if (isGlobalChat) {
+      await supabase
+        .from('global_chat_messages')
+        .insert({
+          user_id: userId,
+          role: 'user',
+          content: message
+        });
 
-    await supabase
-      .from('program_chat_messages')
-      .insert({
-        program_id: programId,
-        user_id: userId,
-        role: 'assistant',
-        content: assistantMessage
-      });
+      await supabase
+        .from('global_chat_messages')
+        .insert({
+          user_id: userId,
+          role: 'assistant',
+          content: assistantMessage
+        });
+    } else {
+      await supabase
+        .from('program_chat_messages')
+        .insert({
+          program_id: programId,
+          user_id: userId,
+          role: 'user',
+          content: message
+        });
+
+      await supabase
+        .from('program_chat_messages')
+        .insert({
+          program_id: programId,
+          user_id: userId,
+          role: 'assistant',
+          content: assistantMessage
+        });
+    }
 
     return new Response(
       JSON.stringify({ message: assistantMessage }),

@@ -6,7 +6,7 @@ import "@/styles/calendar.css";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut, List, Calendar as CalendarIcon, Menu } from "lucide-react";
+import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -15,8 +15,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { ProgramDialog } from "@/components/ProgramDialog";
 import { ItineraryDialog } from "@/components/ItineraryDialog";
+import GlobalAiChat from "@/components/GlobalAiChat";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 
@@ -41,6 +49,7 @@ const Calendar = () => {
   const [itineraryDialogOpen, setItineraryDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [globalChatOpen, setGlobalChatOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -262,6 +271,40 @@ const Calendar = () => {
         onOpenChange={setItineraryDialogOpen}
         onSuccess={loadPrograms}
       />
+
+      {/* Botão flutuante de chat global */}
+      <motion.div
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="fixed bottom-20 sm:bottom-8 right-4 z-40"
+      >
+        <Button
+          size="lg"
+          onClick={() => setGlobalChatOpen(true)}
+          className="rounded-full w-14 h-14 sm:w-16 sm:h-16 shadow-2xl hover:scale-110 transition-transform"
+        >
+          <MessageSquare className="w-6 h-6" />
+        </Button>
+      </motion.div>
+
+      {/* Dialog do Chat Global */}
+      <Dialog open={globalChatOpen} onOpenChange={setGlobalChatOpen}>
+        <DialogContent className="max-w-4xl h-[80vh] p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              Assistente de Viagem
+            </DialogTitle>
+            <DialogDescription>
+              Converse sobre toda sua viagem, eventos e peça dicas
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-6 h-full overflow-hidden">
+            <GlobalAiChat onClose={() => setGlobalChatOpen(false)} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
