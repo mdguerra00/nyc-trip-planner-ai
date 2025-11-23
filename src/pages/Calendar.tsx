@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Plus, LogOut, List, Calendar as CalendarIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProgramDialog } from "@/components/ProgramDialog";
+import { ItineraryDialog } from "@/components/ItineraryDialog";
 import { motion } from "framer-motion";
+import { Sparkles } from "lucide-react";
 
 moment.locale("pt-br");
 const localizer = momentLocalizer(moment);
@@ -29,6 +31,7 @@ const Calendar = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [itineraryDialogOpen, setItineraryDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const navigate = useNavigate();
@@ -152,6 +155,14 @@ const Calendar = () => {
               <Plus className="w-4 h-4 mr-2" />
               Adicionar
             </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setItineraryDialogOpen(true)}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Criar Itinerário
+            </Button>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="w-4 h-4" />
             </Button>
@@ -197,6 +208,12 @@ const Calendar = () => {
         onClose={handleDialogClose}
         program={editingProgram}
         selectedDate={selectedDate}
+      />
+
+      <ItineraryDialog
+        open={itineraryDialogOpen}
+        onOpenChange={setItineraryDialogOpen}
+        onSuccess={loadPrograms}
       />
     </div>
   );
