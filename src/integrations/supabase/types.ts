@@ -97,6 +97,54 @@ export type Database = {
         }
         Relationships: []
       }
+      travel_profile: {
+        Row: {
+          avoid_topics: string[] | null
+          budget_level: string | null
+          created_at: string
+          dietary_restrictions: string[] | null
+          id: string
+          interests: string[] | null
+          mobility_notes: string | null
+          notes: string | null
+          pace: string | null
+          preferred_categories: string[] | null
+          travelers: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avoid_topics?: string[] | null
+          budget_level?: string | null
+          created_at?: string
+          dietary_restrictions?: string[] | null
+          id?: string
+          interests?: string[] | null
+          mobility_notes?: string | null
+          notes?: string | null
+          pace?: string | null
+          preferred_categories?: string[] | null
+          travelers?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avoid_topics?: string[] | null
+          budget_level?: string | null
+          created_at?: string
+          dietary_restrictions?: string[] | null
+          id?: string
+          interests?: string[] | null
+          mobility_notes?: string | null
+          notes?: string | null
+          pace?: string | null
+          preferred_categories?: string[] | null
+          travelers?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       trip_config: {
         Row: {
           created_at: string

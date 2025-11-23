@@ -1,5 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
+import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,53 +15,71 @@ serve(async (req) => {
   }
 
   try {
-    const { program } = await req.json();
+    const { program, userId } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Required environment variables not configured");
     }
 
-    const prompt = `Você é um guia turístico local especializado em Nova York com conhecimento profundo sobre bairros, atrações e experiências autênticas da cidade.
+    // Build travel context if userId is provided
+    let contextualPrompt = "";
+    if (userId) {
+      const travelContext = await buildTravelContext(
+        userId,
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY,
+        program.date
+      );
+      
+      const specificContext = `
+O usuário planejou a seguinte atividade:
 
-Um turista planejou a seguinte atividade:
-Título: ${program.title}
-${program.description ? `Descrição: ${program.description}` : ""}
-${program.address ? `Local: ${program.address}` : ""}
-${program.start_time ? `Horário: ${program.start_time}` : ""}
+ATIVIDADE: ${program.title}
+LOCAL: ${program.address || "Não especificado"}
+DATA: ${program.date}
+HORÁRIO: ${program.start_time || "Não especificado"} até ${program.end_time || "Não especificado"}
+${program.description ? `DESCRIÇÃO: ${program.description}` : ""}
+${program.notes ? `NOTAS: ${program.notes}` : ""}
 
-FOQUE NA REGIÃO E ARREDORES desta atividade e forneça:
+Forneça informações úteis e práticas sobre este local e seus arredores, incluindo:
 
 📍 **Sobre o Local**:
-- Contexto e história interessante do lugar ou bairro
-- Características únicas da região
-- Melhor forma de chegar (metrô, ônibus, caminhada)
+- Contexto e história interessante
+- Características únicas
+- Como chegar (transporte recomendado considerando hotel se disponível)
 
-🎯 **Outras Atrações Próximas** (no raio de 10-15 minutos):
-- 3-4 pontos turísticos ou atrações interessantes
+🎯 **Arredores** (raio de 10-15 minutos):
+- 3-4 pontos de interesse próximos alinhados com preferências
 - Parques, monumentos ou locais fotogênicos
-- Lojas ou experiências únicas da área
 
-🍽️ **Gastronomia Local**:
-- Restaurantes típicos ou imperdíveis da região
-- Cafés ou bares interessantes
-- Opções de street food ou lancherias locais
+🍽️ **Onde Comer**:
+- Restaurantes recomendados que atendam às restrições alimentares (máximo 3)
+- Mencione explicitamente se atendem às restrições: ${travelContext.profile?.dietary_restrictions?.join(", ") || "nenhuma restrição"}
 
 💡 **Dicas Práticas**:
-- Melhor horário para visitar e evitar multidões
-- O que não deixar de ver/fazer no local
-- Cuidados ou informações importantes
+- Tempo de visita recomendado
+- Melhor horário considerando a estação
+- O que vestir/levar considerando o clima
+- Cuidados importantes
 
-IMPORTANTE - RESPONSABILIDADE E SEGURANÇA:
-- Seja factual e baseie-se apenas em informações verificáveis e confiáveis
-- NÃO invente estabelecimentos, endereços ou informações que você não tem certeza
-- Se não tiver informações específicas sobre a região, seja honesto e forneça dicas gerais
-- Priorize segurança: mencione áreas seguras e horários adequados
-- Use conhecimento geral sobre Nova York de fontes confiáveis
+Seja específico, factual e considere TODO o perfil do viajante. Organize com markdown.
+`;
+      
+      contextualPrompt = buildContextualPrompt(travelContext, specificContext);
+    } else {
+      // Fallback if no userId
+      contextualPrompt = `Você é um guia turístico especializado em Nova York. Forneça informações sobre:
 
-Seja específico sobre a REGIÃO e organize as informações de forma clara e prática. Mantenha o tom amigável e útil, em português brasileiro.`;
+${program.title} - ${program.address || ""}
+Data: ${program.date}
 
-    console.log("Calling AI with prompt:", prompt);
+Seja factual e verificável.`;
+    }
+
+    console.log("Generating suggestions for:", program.title);
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -73,13 +93,8 @@ Seja específico sobre a REGIÃO e organize as informações de forma clara e pr
           model: "google/gemini-2.5-flash",
           messages: [
             {
-              role: "system",
-              content:
-                "Você é um guia turístico experiente especializado em Nova York. Forneça informações úteis, práticas e interessantes.",
-            },
-            {
               role: "user",
-              content: prompt,
+              content: contextualPrompt,
             },
           ],
         }),
