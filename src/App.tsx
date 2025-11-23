@@ -8,6 +8,7 @@ import Calendar from "./pages/Calendar";
 import ProgramList from "./pages/ProgramList";
 import ProgramDetail from "./pages/ProgramDetail";
 import NotFound from "./pages/NotFound";
+import { BottomNav } from "./components/BottomNav";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/program/:id" element={<ProgramDetail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <BottomNav />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

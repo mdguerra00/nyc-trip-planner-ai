@@ -6,8 +6,15 @@ import "@/styles/calendar.css";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut, List, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, LogOut, List, Calendar as CalendarIcon, Menu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProgramDialog } from "@/components/ProgramDialog";
 import { ItineraryDialog } from "@/components/ItineraryDialog";
 import { motion } from "framer-motion";
@@ -123,60 +130,100 @@ const Calendar = () => {
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="border-b bg-card shadow-soft"
+        className="border-b bg-card shadow-soft sticky top-0 z-50"
       >
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg">
-              <CalendarIcon className="w-6 h-6 text-primary-foreground" />
+        <div className="container mx-auto px-3 sm:px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            {/* Logo/Title */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="p-2 bg-primary rounded-lg flex-shrink-0">
+                <CalendarIcon className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-2xl font-bold truncate">Viagem NYC</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
+                  Planeje sua aventura
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold">Viagem NYC</h1>
-              <p className="text-sm text-muted-foreground">Planeje sua aventura</p>
+            
+            {/* Actions - Mobile: Icons only */}
+            <div className="flex items-center gap-1">
+              {/* Desktop: Com texto */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setItineraryDialogOpen(true)}
+                className="hidden sm:flex min-h-[44px]"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Criar Itinerário
+              </Button>
+              
+              {/* Mobile: Menu Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="sm:hidden min-w-[44px] min-h-[44px]">
+                    <Menu className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-card">
+                  <DropdownMenuItem onClick={() => setItineraryDialogOpen(true)}>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Criar Itinerário
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    setSelectedDate(new Date());
+                    setDialogOpen(true);
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Programa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/list")}>
+                    <List className="w-4 h-4 mr-2" />
+                    Ver Lista
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sair
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* Desktop: Botões separados */}
+              <div className="hidden sm:flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => navigate("/list")} className="min-h-[44px]">
+                  <List className="w-4 h-4 mr-2" />
+                  Lista
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => {
+                  setSelectedDate(new Date());
+                  setDialogOpen(true);
+                }} className="min-h-[44px]">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleLogout} className="min-w-[44px] min-h-[44px]">
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/list")}
-            >
-              <List className="w-4 h-4 mr-2" />
-              Lista
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setSelectedDate(new Date());
-                setDialogOpen(true);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Adicionar
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setItineraryDialogOpen(true)}
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Criar Itinerário
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="w-4 h-4" />
-            </Button>
           </div>
         </div>
       </motion.header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-3 sm:px-4 py-4 pb-20 sm:pb-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-card rounded-xl shadow-card p-6"
-          style={{ height: "calc(100vh - 200px)" }}
+          className="bg-card rounded-xl shadow-card p-3 sm:p-6"
+          style={{ 
+            height: typeof window !== 'undefined' && window.innerWidth < 640 
+              ? "calc(100vh - 180px)" 
+              : "calc(100vh - 200px)" 
+          }}
         >
           <BigCalendar
             localizer={localizer}
