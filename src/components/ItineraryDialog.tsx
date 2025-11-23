@@ -326,7 +326,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
       toast({
         title: "✅ Itinerário criado com sucesso!",
-        description: `${programsToInsert.length} programas adicionados em ${new Date(date).toLocaleDateString('pt-BR')} para ${region}`,
+        description: `${programsToInsert.length} programas adicionados em ${new Date(date + 'T00:00:00').toLocaleDateString('pt-BR')} para ${region}`,
         duration: 5000,
       });
 
@@ -377,7 +377,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               {date && (
                 <Badge variant="secondary" className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  {new Date(date).toLocaleDateString('pt-BR', { 
+                  {new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { 
                     day: '2-digit', 
                     month: 'long',
                     year: 'numeric'

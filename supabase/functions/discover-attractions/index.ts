@@ -129,10 +129,19 @@ Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, r
     // Extract JSON from response (handle markdown code blocks)
     let attractions;
     try {
+      console.log('Raw content from Perplexity:', content.substring(0, 200));
+      
       // Remove markdown code blocks if present
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, content];
-      const jsonString = jsonMatch[1].trim();
-      attractions = JSON.parse(jsonString);
+      let cleanContent = content.trim();
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      cleanContent = cleanContent.trim();
+      
+      console.log('Cleaned content:', cleanContent.substring(0, 200));
+      attractions = JSON.parse(cleanContent);
 
       if (!Array.isArray(attractions)) {
         throw new Error('Response is not an array');
