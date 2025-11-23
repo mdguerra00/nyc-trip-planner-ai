@@ -146,6 +146,8 @@ export default function TravelProfile() {
           avoid_topics: values.avoid_topics,
           interests: values.interests,
           notes: values.notes,
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) throw error;
