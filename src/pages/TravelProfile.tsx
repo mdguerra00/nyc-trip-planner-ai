@@ -474,6 +474,9 @@ export default function TravelProfile() {
           <Card>
             <CardHeader>
               <CardTitle>Tópicos a Evitar</CardTitle>
+              <CardDescription>
+                Indique temas ou atividades que você prefere evitar durante a viagem
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <FormField
@@ -481,9 +484,12 @@ export default function TravelProfile() {
                 name="avoid_topics"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel>Tópicos para não incluir no roteiro</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Ex: Locais muito lotados, atividades radicais"
+                        placeholder="Ex: Locais muito lotados, atividades radicais, lugares com animais"
+                        className="min-h-[120px]"
+                        rows={4}
                         value={field.value?.join(", ") || ""}
                         onChange={(e) => {
                           const topics = e.target.value
@@ -495,8 +501,9 @@ export default function TravelProfile() {
                       />
                     </FormControl>
                     <FormDescription>
-                      Separe múltiplos tópicos por vírgula
+                      Separe múltiplos tópicos por vírgula (,)
                     </FormDescription>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
