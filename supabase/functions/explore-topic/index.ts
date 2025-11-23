@@ -1,5 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
+import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,29 +15,45 @@ serve(async (req) => {
   }
 
   try {
-    const { topic, context } = await req.json();
+    const { topic, context: attractionContext, userId, programDate } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Required environment variables not configured");
     }
 
-    const prompt = `Você é um guia turístico especializado em Nova York. Um turista quer saber mais detalhes sobre o seguinte tópico:
+    // Build travel context if userId is provided
+    let contextualPrompt = "";
+    if (userId) {
+      const travelContext = await buildTravelContext(
+        userId,
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY,
+        programDate
+      );
+      
+      const specificContext = `
+Um turista quer saber mais detalhes sobre o seguinte tópico:
 
 TÓPICO: ${topic}
 
 CONTEXTO DA ATRAÇÃO:
-${context}
+${attractionContext}
 
-Forneça informações adicionais detalhadas e práticas sobre este tópico específico. Seja informativo mas conciso.
+Forneça informações adicionais detalhadas e práticas sobre este tópico específico. Seja informativo mas conciso e considere o perfil do viajante.
+`;
+      
+      contextualPrompt = buildContextualPrompt(travelContext, specificContext);
+    } else {
+      // Fallback
+      contextualPrompt = `Você é um guia turístico especializado em Nova York. Forneça informações sobre: ${topic}
 
-IMPORTANTE:
-- Seja factual e baseado em informações verificáveis
-- Não invente dados ou estatísticas
-- Foque em informações práticas e úteis
-- Use fontes confiáveis de informação sobre Nova York
-- Seja específico e relevante ao tópico perguntado
-- Mantenha o tom amigável e acessível`;
+Contexto: ${attractionContext}
+
+Seja factual e verificável.`;
+    }
 
     console.log("Exploring topic:", topic);
 
@@ -51,13 +69,8 @@ IMPORTANTE:
           model: "google/gemini-2.5-flash",
           messages: [
             {
-              role: "system",
-              content:
-                "Você é um guia turístico experiente e confiável especializado em Nova York. Forneça informações precisas e práticas baseadas em fatos verificáveis.",
-            },
-            {
               role: "user",
-              content: prompt,
+              content: contextualPrompt,
             },
           ],
         }),

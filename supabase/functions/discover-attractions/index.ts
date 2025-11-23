@@ -1,4 +1,7 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
+import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { region, date, userSuggestion, requestMore } = await req.json();
+    const { region, date, userSuggestion, requestMore, userId } = await req.json();
 
     if (!region || !date) {
       return new Response(
@@ -21,6 +24,9 @@ serve(async (req) => {
     }
 
     const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
     if (!perplexityApiKey) {
       console.error('PERPLEXITY_API_KEY not configured');
       return new Response(
@@ -29,13 +35,42 @@ serve(async (req) => {
       );
     }
 
-    console.log(`🔍 Searching attractions for ${region} on ${date}`, { userSuggestion, requestMore });
+    console.log(`🔍 Searching attractions for ${region} on ${date}`, { userSuggestion, requestMore, userId });
+
+    // Build travel context if userId is provided
+    let contextualPrefix = "";
+    if (userId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      const travelContext = await buildTravelContext(
+        userId,
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY,
+        date,
+        region
+      );
+      
+      const specificContext = `
+O usuário está procurando atrações para ${region} em ${date}.
+${userSuggestion ? `Sugestão específica do usuário: "${userSuggestion}"` : ""}
+${requestMore ? "O usuário quer opções menos conhecidas e diferentes." : ""}
+
+Use o contexto do viajante para personalizar as sugestões, considerando:
+- Restrições alimentares ao sugerir restaurantes
+- Interesses e preferências para selecionar atrações relevantes
+- Ritmo de viagem para sugerir quantidade adequada de atividades
+- Mobilidade para recomendar locais acessíveis
+- Tópicos a evitar
+`;
+      
+      contextualPrefix = buildContextualPrompt(travelContext, specificContext);
+    }
 
     let prompt: string;
 
     if (userSuggestion) {
       // User-specific suggestion
-      prompt = `Busque informações detalhadas sobre "${userSuggestion}" em Nova York, considerando a região de ${region} e a data ${date}.
+      prompt = `${contextualPrefix}
+
+Busque informações detalhadas sobre "${userSuggestion}" em Nova York, considerando a região de ${region} e a data ${date}.
 
 Para este local específico, forneça EXATAMENTE as seguintes informações em formato JSON:
 - name: nome completo oficial
@@ -45,42 +80,29 @@ Para este local específico, forneça EXATAMENTE as seguintes informações em f
 - description: descrição detalhada (3-4 linhas)
 - estimatedDuration: tempo estimado de visita em minutos
 - neighborhood: bairro específico
-- imageUrl: URL de uma foto representativa do local (busque no Google Images ou site oficial - forneça URL direta da imagem)
-- infoUrl: URL do site oficial ou página do Google Maps com mais informações
+- imageUrl: URL de uma foto representativa do local
+- infoUrl: URL do site oficial ou Google Maps
 
-Se não existir ou não encontrar informações, retorne um array vazio []. Caso contrário, retorne um array JSON válido com 1-3 resultados (incluindo variações ou locais similares se relevante). Não inclua texto adicional, apenas o JSON.`;
+Retorne um array JSON válido com 1-3 resultados. Apenas JSON, sem texto adicional.`;
     } else if (requestMore) {
       // Request for additional suggestions
-      prompt = `Liste OUTRAS atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}. Busque opções DIFERENTES e menos conhecidas, incluindo joias escondidas e lugares únicos.
+      prompt = `${contextualPrefix}
 
-Para cada item, forneça EXATAMENTE as seguintes informações em formato JSON:
-- name: nome completo
-- type: tipo (atração, restaurante, evento, museu, parque, etc)
-- address: endereço completo com CEP se possível
-- hours: horário de funcionamento típico
-- description: breve descrição (2-3 linhas)
-- estimatedDuration: tempo estimado de visita em minutos
-- neighborhood: bairro específico
-- imageUrl: URL de uma foto representativa do local (busque no Google Images ou site oficial - forneça URL direta da imagem)
-- infoUrl: URL do site oficial ou página do Google Maps com mais informações sobre o local
+Liste OUTRAS atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}. 
+Busque opções DIFERENTES e menos conhecidas, incluindo joias escondidas.
 
-Retorne um array JSON válido com 6-10 sugestões DIFERENTES das principais. Não inclua texto adicional, apenas o JSON.`;
+Para cada item, forneça EXATAMENTE as informações em formato JSON (name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl).
+
+Retorne um array JSON válido com 6-10 sugestões DIFERENTES. Apenas JSON, sem texto adicional.`;
     } else {
       // Standard discovery
-      prompt = `Liste as principais atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}.
+      prompt = `${contextualPrefix}
 
-Para cada item, forneça EXATAMENTE as seguintes informações em formato JSON:
-- name: nome completo
-- type: tipo (atração, restaurante, evento, museu, parque, etc)
-- address: endereço completo com CEP se possível
-- hours: horário de funcionamento típico
-- description: breve descrição (2-3 linhas)
-- estimatedDuration: tempo estimado de visita em minutos
-- neighborhood: bairro específico
-- imageUrl: URL de uma foto representativa do local (busque no Google Images ou site oficial - forneça URL direta da imagem)
-- infoUrl: URL do site oficial ou página do Google Maps com mais informações sobre o local
+Liste as principais atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}.
 
-Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, restaurantes, eventos). Não inclua texto adicional, apenas o JSON.`;
+Para cada item, forneça EXATAMENTE as informações em formato JSON (name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl).
+
+Retorne um array JSON válido com 8-12 sugestões variadas. Apenas JSON, sem texto adicional.`;
     }
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -94,7 +116,7 @@ Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, r
         messages: [
           {
             role: 'system',
-            content: 'You are a NYC tourism expert. Always respond with valid JSON arrays only.'
+            content: 'You are a NYC tourism expert. Always respond with valid JSON arrays only. Consider user preferences and restrictions when making suggestions.'
           },
           {
             role: 'user',
@@ -126,12 +148,11 @@ Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, r
       );
     }
 
-    // Extract JSON from response (handle markdown code blocks)
+    // Extract JSON from response
     let attractions;
     try {
       console.log('Raw content from Perplexity:', content.substring(0, 200));
       
-      // Remove markdown code blocks if present
       let cleanContent = content.trim();
       if (cleanContent.startsWith('```json')) {
         cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
@@ -167,7 +188,6 @@ Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, r
       console.error('Failed to parse Perplexity response:', parseError);
       console.error('Raw content:', content);
       
-      // Fallback: return error but with the raw content for debugging
       return new Response(
         JSON.stringify({ 
           error: 'Failed to parse AI response', 

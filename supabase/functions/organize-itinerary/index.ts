@@ -1,5 +1,7 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,7 +47,25 @@ serve(async (req) => {
 
     console.log(`🧠 Organizing itinerary for ${date} with ${selectedAttractions.length} attractions`);
 
-    // Fetch existing programs for the date
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(
+        JSON.stringify({ error: 'AI service not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Build complete travel context
+    const travelContext = await buildTravelContext(
+      user.id,
+      supabaseUrl,
+      supabaseKey,
+      date,
+      region || "Manhattan"
+    );
+
+    // Fetch existing programs for the specific date
     const { data: existingPrograms, error: programsError } = await supabase
       .from('programs')
       .select('*')
@@ -57,127 +77,71 @@ serve(async (req) => {
       console.error('Error fetching existing programs:', programsError);
     }
 
-    // Fetch ALL programs for context
-    const { data: allPrograms } = await supabase
-      .from('programs')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date');
-
-    // Fetch trip config
-    const { data: tripConfig } = await supabase
-      .from('trip_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    // Build comprehensive context
     const existingProgramsText = existingPrograms?.length 
       ? existingPrograms.map(p => 
           `${p.start_time || '?'}-${p.end_time || '?'}: ${p.title} em ${p.address || 'endereço não especificado'}`
         ).join('\n')
       : 'Nenhum programa existente neste dia';
 
-    const allProgramsContext = allPrograms?.map(p => {
-      const faqText = p.ai_faq && Array.isArray(p.ai_faq)
-        ? p.ai_faq.map((q: any) => `P: ${q.question}\nR: ${q.answer}`).join('\n')
-        : '';
-      
-      return `
-📅 ${p.date} - ${p.title}
-📍 ${p.address || 'Sem endereço'}
-⏰ ${p.start_time || '?'} - ${p.end_time || '?'}
-📝 ${p.description || 'Sem descrição'}
-🗒️ Notas: ${p.notes || 'Nenhuma'}
-💡 Sugestões IA: ${p.ai_suggestions || 'Nenhuma'}
-${faqText ? `❓ FAQs:\n${faqText}` : ''}
----`;
-    }).join('\n') || 'Nenhum programa cadastrado ainda';
-
     const attractionsText = selectedAttractions.map((a: any) => 
       `- ${a.name} (${a.type})\n  Endereço: ${a.address}\n  Horários: ${a.hours}\n  Duração estimada: ${a.estimatedDuration} minutos\n  Descrição: ${a.description}`
     ).join('\n\n');
 
-    const hotelInfo = tripConfig?.hotel_address 
-      ? `🏨 Hotel: ${tripConfig.hotel_address}`
-      : '🏨 Hotel: Não configurado (assumir Manhattan central)';
+    const specificContext = `
+Você está organizando um itinerário para o dia ${date} em ${region || "Nova York"}.
 
-    const systemPrompt = `Você é um especialista em planejamento de viagens em NYC com profundo conhecimento de geografia, transporte e logística.
+HORÁRIO DESEJADO: ${startTime || "09:00"} até ${endTime || "22:00"}
 
-CONTEXTO COMPLETO DA VIAGEM:
-${allProgramsContext}
-
-${hotelInfo}
-Período da viagem: ${tripConfig?.start_date || '?'} a ${tripConfig?.end_date || '?'}
-
-PROGRAMAS JÁ EXISTENTES NO DIA ${date}:
+PROGRAMAS JÁ EXISTENTES NESTE DIA:
 ${existingProgramsText}
-
-REGIÃO DE FOCO: ${region}
 
 ATRAÇÕES SELECIONADAS PELO USUÁRIO:
 ${attractionsText}
 
-JANELA DE TEMPO DESEJADA: ${startTime || '09:00'} - ${endTime || '22:00'}
-
 SUA TAREFA:
-1. Organize as atrações selecionadas de forma lógica e eficiente, considerando:
-   - Proximidade geográfica (agrupar locais próximos para minimizar translados)
-   - Horários de funcionamento de cada local
-   - Tempo realista de translado entre locais (15-30min dependendo da distância)
+1. Organize as atrações selecionadas de forma lógica e eficiente considerando:
+   - Proximidade geográfica (agrupar locais próximos)
+   - Horários de funcionamento
+   - Tempo realista de translado (15-30min dependendo da distância)
    - Duração estimada em cada local
-   - Padrões de preferência identificados nos programas anteriores
-   - Fluxo natural do dia (ex: café da manhã → atrações → almoço → mais atrações → jantar)
+   - Fluxo natural do dia (café → atrações → almoço → mais atrações → jantar)
+   - Padrões de preferência do perfil do viajante
+   - Condições climáticas da estação
 
 2. NÃO sobrescrever ou conflitar com programas existentes
 3. Preencher gaps de tempo livre entre programas existentes
-4. Sugerir horários realistas baseados nos padrões do usuário
-
-5. Para cada programa, calcule e informe o tempo de translado do local anterior (ou do hotel se for o primeiro)
-
-REGRAS CRÍTICAS:
-- Use os endereços exatos fornecidos
-- Tempos de translado: a pé (5-20min), metrô (15-30min), táxi (10-25min)
-- Respeite os horários dos programas existentes
-- Deixe 15-30min de buffer entre programas para translados
-- Inclua referências às notas e preferências anteriores quando relevante
+4. Respeitar as restrições e preferências do viajante
+5. Para cada programa, calcule tempo de translado
 
 FORMATO DE RESPOSTA (JSON válido, sem markdown):
 {
   "programs": [
     {
-      "title": "Nome da atração",
-      "description": "Breve descrição personalizada considerando o contexto da viagem",
+      "title": "Nome da atração exatamente como fornecido",
+      "description": "Breve descrição personalizada (1-2 linhas)",
       "start_time": "HH:MM",
       "end_time": "HH:MM",
       "address": "Endereço completo exato",
-      "notes": "Dicas e informações úteis, incluindo translado (ex: 20min de metrô do hotel)"
+      "notes": "Dicas práticas, transporte, tempo de translado"
     }
   ],
   "summary": "Resumo da organização do dia com lógica aplicada",
   "warnings": ["Avisos sobre conflitos ou ajustes necessários"]
-}`;
+}
+`;
 
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) {
-      console.error('LOVABLE_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ error: 'AI service not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const systemPrompt = buildContextualPrompt(travelContext, specificContext);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: 'Por favor, organize esse itinerário de forma inteligente.' }
+          { role: 'user', content: systemPrompt }
         ],
       }),
     });

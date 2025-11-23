@@ -1,5 +1,7 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,22 +41,22 @@ serve(async (req) => {
 
     const userId = user.id;
 
-    // Fetch ALL programs from the user's trip
-    const { data: allPrograms } = await supabase
-      .from('programs')
-      .select('*')
-      .eq('user_id', userId)
-      .order('date', { ascending: true });
+    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-    // Fetch trip configuration (start and end dates)
-    const { data: tripConfig } = await supabase
-      .from('trip_config')
-      .select('start_date, end_date')
-      .eq('user_id', userId)
-      .single();
+    if (!PERPLEXITY_API_KEY || !LOVABLE_API_KEY) {
+      throw new Error('API keys not configured');
+    }
 
-    // Fetch previous chat messages for this program and user
-    const { data: previousMessages } = await supabase
+    // Build complete travel context
+    const travelContext = await buildTravelContext(
+      userId,
+      supabaseUrl,
+      supabaseKey
+    );
+
+    // Fetch chat history for this specific program
+    const { data: chatHistory } = await supabase
       .from('program_chat_messages')
       .select('role, content')
       .eq('program_id', programId)
@@ -62,24 +64,18 @@ serve(async (req) => {
       .order('created_at', { ascending: true })
       .limit(50);
 
-    // Build complete trip context
-  const tripContext = allPrograms?.map(p => {
-    const faqText = p.ai_faq && Array.isArray(p.ai_faq)
-      ? p.ai_faq.map((q: any) => 
-          `P: ${q.question}\nR: ${q.answer}${q.details ? '\n' + q.details : ''}`
-        ).join('\n\n')
-      : '';
-      
-      return `
-📅 ${p.date} - ${p.title}
-📍 ${p.address || 'Local não informado'}
-⏰ ${p.start_time || ''} ${p.end_time ? '- ' + p.end_time : ''}
-📝 ${p.description || ''}
+    const specificContext = `
+O usuário está conversando sobre sua viagem a Nova York.
+${programId && programData ? `
+Programa específico sendo visualizado:
+- ${programData.title} - ${programData.date}
+- ${programData.address || "Local não especificado"}
+` : "Conversando de forma geral sobre a viagem"}
 
-${p.ai_suggestions ? `💡 Sugestões:\n${p.ai_suggestions}\n` : ''}
-${faqText ? `❓ FAQs:\n${faqText}` : ''}
-`.trim();
-    }).join('\n\n---\n\n') || '';
+Você é um assistente de viagem amigável e prestativo. Responda de forma personalizada considerando TODO o contexto do viajante, respeitando suas preferências, restrições e necessidades.
+`;
+
+    const tripContext = buildContextualPrompt(travelContext, specificContext);
 
     // Function to detect if query needs real-time information
     const needsRealTimeInfo = (query: string): boolean => {
@@ -94,12 +90,7 @@ ${faqText ? `❓ FAQs:\n${faqText}` : ''}
     };
 
     // Function to call Perplexity for real-time queries
-    const callPerplexity = async (query: string, context: string) => {
-      const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
-      if (!PERPLEXITY_API_KEY) {
-        throw new Error('PERPLEXITY_API_KEY not configured');
-      }
-
+    const callPerplexity = async (query: string) => {
       const response = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
         headers: {
@@ -111,13 +102,7 @@ ${faqText ? `❓ FAQs:\n${faqText}` : ''}
           messages: [
             {
               role: 'system',
-              content: `Você é um assistente turístico especializado. Use informações em tempo real da web para responder.
-
-CONTEXTO DA VIAGEM DO USUÁRIO:
-${context}
-
-Forneça informações ATUALIZADAS sobre: horários, preços, disponibilidade, clima, trânsito, eventos atuais.
-Cite suas fontes quando possível. Seja preciso e útil.`
+              content: `${tripContext}\n\nForneça informações ATUALIZADAS em tempo real. Cite fontes quando possível.`
             },
             { role: 'user', content: query }
           ],
@@ -137,47 +122,10 @@ Cite suas fontes quando possível. Seja preciso e útil.`
     };
 
     // Function to call Gemini for context-based queries
-    const callGemini = async (query: string, context: string, history: any[]) => {
-      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-      if (!LOVABLE_API_KEY) {
-        throw new Error('LOVABLE_API_KEY not configured');
-      }
-
-      const systemPrompt = `Você é um assistente turístico especializado ajudando a planejar uma viagem.
-
-📋 CONTEXTO COMPLETO DA VIAGEM:
-${tripConfig ? `Período: ${tripConfig.start_date} a ${tripConfig.end_date}` : ''}
-
-${context}
-
----
-
-🎯 EVENTO ATUAL SENDO VISUALIZADO:
-${programData.title} - ${programData.date}
-${programData.address}
-
----
-
-💬 COMO RESPONDER:
-
-1. Use TODAS as informações da viagem para dar respostas contextualizadas
-2. Faça conexões entre eventos próximos (temporal e geograficamente)
-3. Sugira otimizações de roteiro quando relevante
-4. Use as FAQs geradas para enriquecer suas respostas
-5. Considere o período total da viagem nas recomendações
-6. Mencione eventos relacionados quando for útil
-
-Exemplos de perguntas que você pode responder bem:
-- "Qual o melhor restaurante perto dos eventos do dia 15?"
-- "Como ir do evento X para o evento Y?"
-- "O que fazer no tempo livre entre os eventos?"
-- "Quais eventos estão na mesma região?"
-
-Seja preciso, útil e seguro. Não invente informações. Se não souber algo específico, admita e sugira como pesquisar mais.`;
-
+    const callGemini = async (query: string) => {
       const messages = [
-        { role: 'system', content: systemPrompt },
-        ...history,
+        { role: 'system', content: tripContext },
+        ...(chatHistory || []),
         { role: 'user', content: query }
       ];
 
@@ -210,15 +158,15 @@ Seja preciso, útil e seguro. Não invente informações. Se não souber algo es
       return data.choices[0].message.content;
     };
 
-    // Intelligent routing: Perplexity for real-time, Gemini for context
+    // Intelligent routing
     let assistantMessage: string;
     try {
       if (needsRealTimeInfo(message)) {
         console.log('🔍 Using Perplexity for real-time query');
-        assistantMessage = await callPerplexity(message, tripContext);
+        assistantMessage = await callPerplexity(message);
       } else {
         console.log('🧠 Using Gemini for context-based query');
-        assistantMessage = await callGemini(message, tripContext, previousMessages || []);
+        assistantMessage = await callGemini(message);
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -238,7 +186,7 @@ Seja preciso, útil e seguro. Não invente informações. Se não souber algo es
       throw error;
     }
 
-    // Save user message to database
+    // Save messages to database
     await supabase
       .from('program_chat_messages')
       .insert({
@@ -248,7 +196,6 @@ Seja preciso, útil e seguro. Não invente informações. Se não souber algo es
         content: message
       });
 
-    // Save assistant message to database
     await supabase
       .from('program_chat_messages')
       .insert({
