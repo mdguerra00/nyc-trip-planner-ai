@@ -39,6 +39,7 @@ interface Program {
 const ProgramDetail = () => {
   const { id } = useParams();
   const [program, setProgram] = useState<Program | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [aiSuggestions, setAiSuggestions] = useState("");
   const [aiFaq, setAiFaq] = useState<Array<{ question: string; answer: string; details?: string; loadingDetails?: boolean }>>([]);
@@ -49,9 +50,18 @@ const ProgramDetail = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (id) {
-      loadProgram();
-    }
+    const initializeComponent = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+      
+      if (id) {
+        await loadProgram();
+      }
+    };
+    
+    initializeComponent();
   }, [id]);
 
   const loadProgram = async () => {
@@ -111,7 +121,11 @@ const ProgramDetail = () => {
       const { data: faqData, error: faqError } = await supabase.functions.invoke(
         "generate-faq",
         {
-          body: { suggestions },
+          body: { 
+            suggestions,
+            userId: userId,
+            programDate: program.date
+          },
         }
       );
 
