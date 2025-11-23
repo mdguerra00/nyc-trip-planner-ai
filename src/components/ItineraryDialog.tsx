@@ -359,8 +359,8 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       if (!open) resetDialog();
       onOpenChange(open);
     }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-h-[95vh] w-[95vw] sm:max-w-[90vw] lg:max-w-3xl overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
             Criar Itinerário Inteligente
@@ -395,19 +395,22 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
           
           {/* Progress indicator */}
           <div className="flex items-center justify-center gap-2 mt-4">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${step >= 1 ? 'bg-primary text-primary-foreground scale-110' : 'bg-muted text-muted-foreground'}`}>
               1
             </div>
-            <div className={`h-1 w-12 transition-colors ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`h-1 w-8 sm:w-12 transition-all ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+            <div className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${step >= 2 ? 'bg-primary text-primary-foreground scale-110' : 'bg-muted text-muted-foreground'}`}>
               2
             </div>
-            <div className={`h-1 w-12 transition-colors ${step >= 3 ? 'bg-primary' : 'bg-muted'}`} />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step >= 3 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`h-1 w-8 sm:w-12 transition-all ${step >= 3 ? 'bg-primary' : 'bg-muted'}`} />
+            <div className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${step >= 3 ? 'bg-primary text-primary-foreground scale-110' : 'bg-muted text-muted-foreground'}`}>
               3
             </div>
           </div>
         </DialogHeader>
+        
+        {/* Content com scroll */}
+        <div className="flex-1 overflow-y-auto px-1">
 
         {/* Step 1: Configuration */}
         {step === 1 && (
@@ -531,54 +534,55 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               </div>
             </Card>
 
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            <div className="space-y-3 max-h-[50vh] sm:max-h-[400px] overflow-y-auto">
               {attractions.map((attraction) => (
-                <Card key={attraction.id} className="p-4">
-                  <div className="flex items-start gap-3">
+                <Card key={attraction.id} className="p-3 sm:p-4 hover:border-primary transition-colors">
+                  <div className="flex gap-3">
+                    {/* Checkbox maior */}
+                    <Checkbox
+                      checked={selectedAttractions.includes(attraction.id)}
+                      onCheckedChange={() => toggleAttraction(attraction.id)}
+                      className="mt-1 scale-125 sm:scale-100"
+                    />
+                    
                     {/* Image thumbnail */}
                     {attraction.imageUrl && (
                       <img 
                         src={attraction.imageUrl} 
                         alt={attraction.name}
-                        className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                        className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg flex-shrink-0"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                         }}
                       />
                     )}
                     
-                    <Checkbox
-                      checked={selectedAttractions.includes(attraction.id)}
-                      onCheckedChange={() => toggleAttraction(attraction.id)}
-                      className="mt-1"
-                    />
-                    
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 min-w-0 space-y-2">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="font-medium">{attraction.name}</h4>
+                            <h4 className="font-medium text-sm sm:text-base line-clamp-2">{attraction.name}</h4>
                             {attraction.infoUrl && (
                               <a 
                                 href={attraction.infoUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-primary hover:text-primary/80 transition-colors"
+                                className="text-primary hover:text-primary/80 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </a>
                             )}
                           </div>
-                          <Badge variant="outline" className="mt-1">
+                          <Badge variant="outline" className="mt-1 text-xs">
                             {attraction.type}
                           </Badge>
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
                         {attraction.description}
                       </p>
-                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap gap-2 sm:gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3" />
                           {attraction.neighborhood}
@@ -594,14 +598,15 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               ))}
             </div>
 
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setStep(1)}>
+            <div className="flex flex-col sm:flex-row gap-2 pt-4">
+              <Button variant="outline" onClick={() => setStep(1)} className="min-h-[44px]">
                 Voltar
               </Button>
               <Button 
                 variant="outline"
                 onClick={() => handleDiscoverAttractions(true)}
                 disabled={loadingAttractions}
+                className="min-h-[44px]"
               >
                 {loadingAttractions ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -613,7 +618,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               <Button 
                 onClick={handleOrganizeItinerary}
                 disabled={loadingOrganization || selectedAttractions.length === 0}
-                className="flex-1"
+                className="flex-1 min-h-[44px]"
               >
                 {loadingOrganization ? (
                   <>
@@ -661,7 +666,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               </Card>
             )}
 
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            <div className="space-y-3 max-h-[50vh] sm:max-h-[400px] overflow-y-auto">
               {organizedPrograms.map((program, idx) => (
                 <Card key={idx} className="p-4">
                   <div className="space-y-2">
@@ -688,14 +693,14 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               ))}
             </div>
 
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" onClick={() => setStep(2)}>
+            <div className="flex flex-col sm:flex-row gap-2 pt-4">
+              <Button variant="outline" onClick={() => setStep(2)} className="min-h-[44px]">
                 Voltar
               </Button>
               <Button 
                 onClick={handleConfirmAndSave}
                 disabled={saving}
-                className="flex-1"
+                className="flex-1 min-h-[44px]"
               >
                 {saving ? (
                   <>
@@ -711,6 +716,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
             </div>
           </div>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   );

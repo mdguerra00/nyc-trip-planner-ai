@@ -117,5 +117,28 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Touch targets mínimos para mobile */
+  button, a, input[type="checkbox"] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Scroll suave no mobile */
+  html {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent zoom on input focus no iOS */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  
+  /* Safe area padding for bottom nav */
+  .safe-area-pb {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
   }
 }

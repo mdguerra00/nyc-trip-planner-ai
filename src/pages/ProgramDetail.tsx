@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useSwipeable } from 'react-swipeable';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -209,6 +210,11 @@ const ProgramDetail = () => {
     }
   };
 
+  const handlers = useSwipeable({
+    onSwipedRight: () => navigate("/"),
+    trackMouse: false
+  });
+
   if (!program) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -218,49 +224,62 @@ const ProgramDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div {...handlers} className="min-h-screen bg-background pb-6 sm:pb-0">
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="border-b bg-card shadow-soft"
+        className="border-b bg-card shadow-soft sticky top-0 z-50"
       >
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">{program.title}</h1>
-              <p className="text-sm text-muted-foreground">
-                {(() => {
-                  const [year, month, day] = program.date.split('-').map(Number);
-                  const localDate = new Date(year, month - 1, day);
-                  return format(localDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-                })()}
-              </p>
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+          {/* Mobile: Stack vertical */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Left side: Voltar + Info */}
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate("/")}
+                className="min-w-[44px] min-h-[44px] flex-shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold truncate">{program.title}</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  {(() => {
+                    const [year, month, day] = program.date.split('-').map(Number);
+                    const localDate = new Date(year, month - 1, day);
+                    return format(localDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+                  })()}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowEditDialog(true)}
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Editar
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            
+            {/* Right side: Actions */}
+            <div className="flex gap-2 ml-auto sm:ml-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEditDialog(true)}
+                className="min-h-[44px] flex-1 sm:flex-none"
+              >
+                <Edit className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Editar</span>
+              </Button>
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => setShowDeleteDialog(true)}
+                className="min-w-[44px] min-h-[44px]"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </motion.header>
 
-      <main className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-4xl space-y-4 sm:space-y-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -276,20 +295,20 @@ const ProgramDetail = () => {
                   <p className="text-muted-foreground">{program.description}</p>
                 </div>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
                 {program.start_time && (
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span>
+                  <div className="flex items-center gap-2 min-h-[44px]">
+                    <Clock className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-base">
                       {program.start_time}
                       {program.end_time && ` - ${program.end_time}`}
                     </span>
                   </div>
                 )}
                 {program.address && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                    <span>{program.address}</span>
+                  <div className="flex items-center gap-2 min-h-[44px]">
+                    <MapPin className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-base break-words">{program.address}</span>
                   </div>
                 )}
               </div>

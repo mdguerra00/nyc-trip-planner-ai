@@ -159,28 +159,28 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-3 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Converse com a IA sobre este evento</h3>
+          <h3 className="font-semibold text-sm sm:text-base">Converse com a IA</h3>
         </div>
         {messages.length > 0 && (
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={clearChat}
             disabled={isLoading}
+            className="min-w-[44px] min-h-[44px]"
           >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Limpar
+            <Trash2 className="h-4 w-4" />
           </Button>
         )}
       </div>
 
       <div className="space-y-4">
         {/* Messages container */}
-        <div className="h-[400px] overflow-y-auto space-y-3 pr-2">
+        <div className="max-h-[50vh] sm:h-[400px] overflow-y-auto space-y-3 pr-2">
           <AnimatePresence mode="popLayout">
             {messages.length === 0 ? (
               <motion.div
@@ -204,13 +204,13 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
                   }`}
                 >
                   <div
-                    className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                    className={`rounded-lg px-3 py-2 sm:px-4 sm:py-2 max-w-[85%] sm:max-w-[80%] ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-sm sm:text-base whitespace-pre-wrap break-words">{msg.content}</p>
                   </div>
                 </motion.div>
               ))
@@ -248,14 +248,15 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
             onKeyPress={handleKeyPress}
             placeholder="Digite sua pergunta..."
             disabled={isLoading}
-            className="flex-1"
+            className="flex-1 text-base min-h-[44px]"
           />
           <Button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
             size="icon"
+            className="min-w-[44px] min-h-[44px]"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-5 w-5" />
           </Button>
         </div>
       </div>
