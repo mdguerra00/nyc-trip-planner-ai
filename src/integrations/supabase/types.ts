@@ -101,6 +101,7 @@ export type Database = {
         Row: {
           created_at: string
           end_date: string
+          hotel_address: string | null
           id: string
           start_date: string
           updated_at: string
@@ -109,6 +110,7 @@ export type Database = {
         Insert: {
           created_at?: string
           end_date: string
+          hotel_address?: string | null
           id?: string
           start_date: string
           updated_at?: string
@@ -117,6 +119,7 @@ export type Database = {
         Update: {
           created_at?: string
           end_date?: string
+          hotel_address?: string | null
           id?: string
           start_date?: string
           updated_at?: string
