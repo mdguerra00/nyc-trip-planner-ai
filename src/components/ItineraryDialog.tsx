@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, Search, Brain, MapPin, Clock } from "lucide-react";
+import { Loader2, Sparkles, Search, Brain, MapPin, Clock, Calendar, ExternalLink } from "lucide-react";
 
 interface Attraction {
   id: string;
@@ -19,6 +19,8 @@ interface Attraction {
   description: string;
   estimatedDuration: number;
   neighborhood: string;
+  imageUrl?: string;
+  infoUrl?: string;
 }
 
 interface OrganizedProgram {
@@ -43,6 +45,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
   // Step 1: Configuration
   const [region, setRegion] = useState("");
   const [date, setDate] = useState("");
+  const [dateTimestamp, setDateTimestamp] = useState<number | null>(null);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("22:00");
   
@@ -80,6 +83,22 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       });
       return;
     }
+
+    // Validate date is not in the past
+    const selectedDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+      toast({
+        title: "Data inválida",
+        description: "Não é possível criar itinerário para datas passadas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('🔍 DEBUG - Discovering attractions:', { region, date, dateTimestamp });
 
     setLoadingAttractions(true);
     try {
@@ -122,6 +141,24 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       });
       return;
     }
+
+    // Validate date state is still present
+    if (!date || !dateTimestamp) {
+      toast({
+        title: "Erro interno",
+        description: "Data perdida. Por favor, reinicie o processo.",
+        variant: "destructive",
+      });
+      setStep(1);
+      return;
+    }
+
+    console.log('🧠 DEBUG - Organizing itinerary:', { 
+      date, 
+      dateTimestamp,
+      region,
+      selectedCount: selectedAttractions.length 
+    });
 
     setLoadingOrganization(true);
     try {
@@ -174,10 +211,37 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
   };
 
   const handleConfirmAndSave = async () => {
+    // Final validation before saving
+    if (!date || !dateTimestamp) {
+      toast({
+        title: "Erro de validação",
+        description: "Data não encontrada. Reinicie o processo.",
+        variant: "destructive"
+      });
+      setStep(1);
+      return;
+    }
+
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
+
+      // Check for existing programs on this date
+      const { data: existingPrograms } = await supabase
+        .from('programs')
+        .select('start_time, end_time, title')
+        .eq('user_id', user.id)
+        .eq('date', date);
+
+      if (existingPrograms && existingPrograms.length > 0) {
+        console.log('⚠️ Found existing programs on this date:', existingPrograms);
+        toast({
+          title: "⚠️ Atenção",
+          description: `Já existem ${existingPrograms.length} programa(s) nesta data. Você pode revisar conflitos depois.`,
+          duration: 5000,
+        });
+      }
 
       // Insert all programs
       const programsToInsert = organizedPrograms.map(prog => ({
@@ -191,6 +255,15 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
         notes: prog.notes,
       }));
 
+      console.log('💾 DEBUG - Saving programs:', {
+        date,
+        dateTimestamp,
+        dateObject: new Date(date).toISOString(),
+        programCount: programsToInsert.length,
+        firstProgram: programsToInsert[0],
+        region
+      });
+
       const { error } = await supabase
         .from('programs')
         .insert(programsToInsert);
@@ -198,8 +271,9 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       if (error) throw error;
 
       toast({
-        title: "✅ Itinerário criado!",
-        description: `${programsToInsert.length} programas adicionados ao calendário`,
+        title: "✅ Itinerário criado com sucesso!",
+        description: `${programsToInsert.length} programas adicionados em ${new Date(date).toLocaleDateString('pt-BR')} para ${region}`,
+        duration: 5000,
       });
 
       resetDialog();
@@ -242,6 +316,43 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
             {step === 2 && "Selecione as atrações que deseja visitar"}
             {step === 3 && "Confira o itinerário organizado pela IA"}
           </DialogDescription>
+          
+          {/* Contextual header with date and region */}
+          {(date || region) && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+              {date && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {new Date(date).toLocaleDateString('pt-BR', { 
+                    day: '2-digit', 
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </Badge>
+              )}
+              {region && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  {region}
+                </Badge>
+              )}
+            </div>
+          )}
+          
+          {/* Progress indicator */}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              1
+            </div>
+            <div className={`h-1 w-12 transition-colors ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              2
+            </div>
+            <div className={`h-1 w-12 transition-colors ${step >= 3 ? 'bg-primary' : 'bg-muted'}`} />
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step >= 3 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              3
+            </div>
+          </div>
         </DialogHeader>
 
         {/* Step 1: Configuration */}
@@ -263,7 +374,12 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
                 id="date"
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setDate(newDate);
+                  setDateTimestamp(new Date(newDate).getTime());
+                  console.log('📅 Date updated:', { newDate, timestamp: new Date(newDate).getTime() });
+                }}
               />
             </div>
 
@@ -326,14 +442,41 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               {attractions.map((attraction) => (
                 <Card key={attraction.id} className="p-4">
                   <div className="flex items-start gap-3">
+                    {/* Image thumbnail */}
+                    {attraction.imageUrl && (
+                      <img 
+                        src={attraction.imageUrl} 
+                        alt={attraction.name}
+                        className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    )}
+                    
                     <Checkbox
                       checked={selectedAttractions.includes(attraction.id)}
                       onCheckedChange={() => toggleAttraction(attraction.id)}
+                      className="mt-1"
                     />
+                    
                     <div className="flex-1 space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-medium">{attraction.name}</h4>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{attraction.name}</h4>
+                            {attraction.infoUrl && (
+                              <a 
+                                href={attraction.infoUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-primary/80 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
                           <Badge variant="outline" className="mt-1">
                             {attraction.type}
                           </Badge>
