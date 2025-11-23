@@ -41,6 +41,8 @@ Para cada item, forneça EXATAMENTE as seguintes informações em formato JSON:
 - description: breve descrição (2-3 linhas)
 - estimatedDuration: tempo estimado de visita em minutos
 - neighborhood: bairro específico
+- imageUrl: URL de uma foto representativa do local (busque no Google Images ou site oficial - forneça URL direta da imagem)
+- infoUrl: URL do site oficial ou página do Google Maps com mais informações sobre o local
 
 Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, restaurantes, eventos). Não inclua texto adicional, apenas o JSON.`;
 
@@ -109,6 +111,8 @@ Retorne um array JSON válido com 8-12 sugestões variadas (mix de atrações, r
         description: attr.description || 'Sem descrição',
         estimatedDuration: attr.estimatedDuration || 60,
         neighborhood: attr.neighborhood || region,
+        imageUrl: attr.imageUrl || null,
+        infoUrl: attr.infoUrl || null,
       }));
 
       console.log(`✅ Found ${attractions.length} attractions`);
