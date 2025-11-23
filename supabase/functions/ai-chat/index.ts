@@ -63,12 +63,12 @@ serve(async (req) => {
       .limit(50);
 
     // Build complete trip context
-    const tripContext = allPrograms?.map(p => {
-      const faqText = p.ai_faq 
-        ? JSON.parse(p.ai_faq).map((q: any) => 
-            `P: ${q.question}\nR: ${q.answer}${q.details ? '\n' + q.details : ''}`
-          ).join('\n\n')
-        : '';
+  const tripContext = allPrograms?.map(p => {
+    const faqText = p.ai_faq && Array.isArray(p.ai_faq)
+      ? p.ai_faq.map((q: any) => 
+          `P: ${q.question}\nR: ${q.answer}${q.details ? '\n' + q.details : ''}`
+        ).join('\n\n')
+      : '';
       
       return `
 📅 ${p.date} - ${p.title}
