@@ -90,6 +90,15 @@ serve(async (req) => {
     const specificContext = `
 Você está organizando um itinerário para o dia ${date} em ${region || "Nova York"}.
 
+⚠️⚠️⚠️ VALIDAÇÃO CRÍTICA DE DATA ⚠️⚠️⚠️
+ANTES DE ORGANIZAR, VERIFIQUE:
+1. Se alguma atração for um EVENTO PONTUAL (show, jogo, festival):
+   - Confirme que o evento ocorre EXATAMENTE em ${date}
+   - Se a data do evento for diferente → REJEITE e adicione warning
+2. Se for ATRAÇÃO PERMANENTE (museu, restaurante):
+   - Confirme que está ABERTA em ${date}
+   - Se fechada → REJEITE e adicione warning
+
 HORÁRIO DESEJADO: ${startTime || "09:00"} até ${endTime || "22:00"}
 
 PROGRAMAS JÁ EXISTENTES NESTE DIA:

@@ -70,6 +70,11 @@ Use o contexto do viajante para personalizar as sugestões, considerando:
       // User-specific suggestion
       prompt = `${contextualPrefix}
 
+⚠️⚠️⚠️ VALIDAÇÃO TEMPORAL CRÍTICA ⚠️⚠️⚠️
+ATENÇÃO: Se "${userSuggestion}" for um evento pontual, ele DEVE ocorrer EXATAMENTE no dia ${date}.
+Se for evento de outra data → retorne array vazio [].
+Se for atração permanente → confirme que está aberta em ${date}.
+
 Busque informações detalhadas sobre "${userSuggestion}" em Nova York, considerando a região de ${region} e a data ${date}.
 
 Para este local específico, forneça EXATAMENTE as seguintes informações em formato JSON:
@@ -88,6 +93,11 @@ Retorne um array JSON válido com 1-3 resultados. Apenas JSON, sem texto adicion
       // Request for additional suggestions
       prompt = `${contextualPrefix}
 
+⚠️⚠️⚠️ VALIDAÇÃO TEMPORAL OBRIGATÓRIA ⚠️⚠️⚠️
+APENAS inclua eventos que acontecem EXATAMENTE em ${date}.
+Atrações permanentes devem estar ABERTAS em ${date}.
+REMOVA qualquer item de data incorreta.
+
 Liste OUTRAS atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}. 
 Busque opções DIFERENTES e menos conhecidas, incluindo joias escondidas.
 
@@ -97,6 +107,25 @@ Retorne um array JSON válido com 6-10 sugestões DIFERENTES. Apenas JSON, sem t
     } else {
       // Standard discovery
       prompt = `${contextualPrefix}
+
+⚠️⚠️⚠️ VALIDAÇÃO TEMPORAL OBRIGATÓRIA ⚠️⚠️⚠️
+
+ANTES DE LISTAR QUALQUER ITEM, VOCÊ DEVE:
+
+1. EVENTOS PONTUAIS (shows, jogos, festivais, apresentações):
+   - APENAS eventos que acontecem EXATAMENTE no dia ${date}
+   - SE um evento acontece em outra data → REMOVA IMEDIATAMENTE
+   - NUNCA sugira eventos passados ou futuros
+
+2. ATRAÇÕES PERMANENTES (museus, restaurantes, parques):
+   - Verificar se estão ABERTOS no dia ${date}
+   - Confirmar horários de funcionamento para esta data específica
+   - Se fechado → REMOVA da lista
+
+3. VALIDAÇÃO FINAL:
+   - Revise CADA item antes de retornar
+   - Remova QUALQUER item que não seja válido para ${date}
+   - Em caso de dúvida sobre a data → NÃO inclua o item
 
 Liste as principais atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}.
 

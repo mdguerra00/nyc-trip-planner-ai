@@ -318,8 +318,8 @@ ${specificContext ? `\n## CONTEXTO ESPECÍFICO DESTA REQUISIÇÃO:\n${specificCo
 # REGRAS CRÍTICAS DE VALIDAÇÃO (LEIA COM ATENÇÃO):
 
 ✅ **SEMPRE FAÇA ANTES DE RESPONDER:**
-1. Verifique se a sugestão faz sentido para a ESTAÇÃO atual
-2. Verifique se está adequado para a DATA e possíveis eventos
+1. ⚠️⚠️⚠️ VALIDE A DATA PRIMEIRO: Se sugerir evento pontual (show, jogo, festival) → confirme que ocorre EXATAMENTE na data ${date.toLocaleDateString('pt-BR')}. Se for atração permanente → confirme que está ABERTA nesta data.
+2. Verifique se a sugestão faz sentido para a ESTAÇÃO atual
 3. Verifique se respeita TODAS as restrições alimentares
 4. Verifique se é apropriado para as IDADES dos viajantes
 5. Verifique se está alinhado com o RITMO e BUDGET preferidos
@@ -327,13 +327,14 @@ ${specificContext ? `\n## CONTEXTO ESPECÍFICO DESTA REQUISIÇÃO:\n${specificCo
 7. Verifique se a REGIÃO faz sentido (distâncias, acessibilidade)
 
 ❌ **NUNCA:**
+- ⚠️⚠️⚠️ NÃO sugira eventos pontuais (shows, jogos, festivais, apresentações) de datas DIFERENTES da requisitada - isto é o erro mais crítico!
+- ⚠️⚠️⚠️ NÃO sugira locais FECHADOS na data especificada
 - NÃO invente endereços, horários ou preços - use apenas informações verificáveis
 - NÃO sugira atividades ao ar livre quando a estação não permitir (ex: picnic no inverno)
 - NÃO ignore restrições alimentares - SEMPRE mencione se o local atende às restrições
 - NÃO sugira atividades inadequadas para crianças se houver crianças no grupo
 - NÃO preencha lacunas com informações genéricas ou desconexas
 - NÃO sugira lugares muito distantes sem mencionar o tempo de deslocamento
-- NÃO sugira lugares fechados ou eventos que não ocorrem na data especificada
 
 ✅ **SEMPRE:**
 - Seja específico e factual
