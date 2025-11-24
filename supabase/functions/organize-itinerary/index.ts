@@ -87,6 +87,15 @@ serve(async (req) => {
       `- ${a.name} (${a.type})\n  Endereço: ${a.address}\n  Horários: ${a.hours}\n  Duração estimada: ${a.estimatedDuration} minutos\n  Descrição: ${a.description}`
     ).join('\n\n');
 
+    console.log(`🧠 Organizing itinerary for ${date} with ${selectedAttractions.length} attractions in ${region || "Nova York"}`);
+    console.log('📊 Context summary:', {
+      hasProfile: !!travelContext,
+      date,
+      region,
+      attractionsCount: selectedAttractions.length,
+      existingProgramsCount: existingPrograms?.length || 0
+    });
+
     const specificContext = `
 Você está organizando um itinerário para o dia ${date} em ${region || "Nova York"}.
 
@@ -98,6 +107,14 @@ ANTES DE ORGANIZAR, VERIFIQUE:
 2. Se for ATRAÇÃO PERMANENTE (museu, restaurante):
    - Confirme que está ABERTA em ${date}
    - Se fechada → REJEITE e adicione warning
+
+⭐ OTIMIZAÇÃO GEOGRÁFICA:
+- MINIMIZE deslocamentos: organize por PROXIMIDADE
+- PREFIRA atrações caminháveis quando possível (máximo 15 min a pé)
+- Se incluir lugares mais distantes, mencione tempo/custo de transporte no campo "notes"
+- CRIE um fluxo lógico de deslocamento (evite vai-e-vem desnecessário)
+- Agrupe atrações próximas no mesmo período
+- Considere o tempo de deslocamento entre cada atividade
 
 HORÁRIO DESEJADO: ${startTime || "09:00"} até ${endTime || "22:00"}
 
@@ -193,19 +210,57 @@ FORMATO DE RESPOSTA (JSON válido, sem markdown):
     // Parse JSON response
     let organizedItinerary;
     try {
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, content];
-      const jsonString = jsonMatch[1].trim();
+      // 1. Tentar extrair JSON de markdown
+      let jsonString = content;
+      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        jsonString = jsonMatch[1].trim();
+      }
+      
+      // 2. Tentar fazer parse
       organizedItinerary = JSON.parse(jsonString);
-
-      console.log(`✅ Organized ${organizedItinerary.programs?.length || 0} programs`);
-
+      
+      // 3. Validar estrutura mínima
+      if (!organizedItinerary.programs || !Array.isArray(organizedItinerary.programs)) {
+        throw new Error('Invalid response structure: missing programs array');
+      }
+      
+      // 4. Verificar se retornou vazio
+      if (organizedItinerary.programs.length === 0) {
+        console.log('⚠️ No programs organized - AI returned empty array');
+        return new Response(
+          JSON.stringify({ 
+            error: 'Nenhum programa foi organizado. A IA pode não ter encontrado informações suficientes sobre a região ou as atrações selecionadas não são compatíveis com a data escolhida.',
+            warnings: organizedItinerary.warnings || [],
+            itinerary: { programs: [], summary: organizedItinerary.summary || '', warnings: organizedItinerary.warnings || [] }
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log(`✅ Organized ${organizedItinerary.programs.length} programs`);
+      
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       console.error('Raw content:', content);
       
+      // Verificar se a IA retornou uma mensagem explicativa
+      if (content.toLowerCase().includes('não encontr') || 
+          content.toLowerCase().includes('não há') ||
+          content.toLowerCase().includes('não existe')) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'A IA não conseguiu encontrar informações suficientes sobre essa região ou data. Tente: 1) Escolher uma região mais específica (ex: "SoHo" em vez de "Manhattan"), 2) Verificar se a data está correta, 3) Selecionar outras atrações.',
+            rawContent: content.substring(0, 300)
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to parse AI response',
+          error: 'Erro ao processar resposta da IA. Por favor, tente novamente. Se o problema persistir, tente selecionar menos atrações ou uma região diferente.',
+          details: parseError instanceof Error ? parseError.message : 'Unknown parse error',
           rawContent: content.substring(0, 500)
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
