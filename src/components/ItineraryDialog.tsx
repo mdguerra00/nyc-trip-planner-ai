@@ -238,7 +238,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
       if (error) throw error;
 
-      if (data.error) {
+      if (data?.error) {
         throw new Error(data.error);
       }
 
@@ -254,11 +254,31 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
     } catch (error: any) {
       console.error('Error organizing itinerary:', error);
+      
+      // Extrair mensagem de erro mais descritiva
+      let errorMessage = "Tente novamente";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erro ao organizar itinerário",
-        description: error.message || "Tente novamente",
+        description: errorMessage,
         variant: "destructive",
+        duration: 7000, // Mais tempo para ler mensagens longas
       });
+      
+      // Se for erro de região não encontrada, sugerir voltar para Step 1
+      if (errorMessage.toLowerCase().includes('região') || 
+          errorMessage.toLowerCase().includes('não encontr')) {
+        setTimeout(() => {
+          toast({
+            title: "💡 Sugestão",
+            description: "Tente ajustar a região ou data e descobrir atrações novamente",
+            duration: 5000,
+          });
+        }, 1000);
+      }
     } finally {
       setLoadingOrganization(false);
     }

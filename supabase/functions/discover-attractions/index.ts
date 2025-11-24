@@ -127,7 +127,18 @@ ANTES DE LISTAR QUALQUER ITEM, VOCÊ DEVE:
    - Remova QUALQUER item que não seja válido para ${date}
    - Em caso de dúvida sobre a data → NÃO inclua o item
 
-Liste as principais atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}.
+Liste as principais atrações, eventos, restaurantes e atividades turísticas em ou PRÓXIMAS a ${region}, Nova York, adequadas para o dia ${date}.
+
+⭐ CRITÉRIO DE PROXIMIDADE:
+- Se ${region} for um PONTO ESPECÍFICO (ex: "Columbus Circle", "Times Square", "SoHo"):
+  → Priorize opções a no máximo 10-15 minutos A PÉ
+  → Mencione distâncias/tempos de caminhada quando relevante
+  → Agrupe por proximidade (ex: "5 min norte", "caminhável", "no local")
+  → Inclua estabelecimentos, atrações e restaurantes PRÓXIMOS
+- Se ${region} for REGIÃO AMPLA (ex: "Manhattan", "Brooklyn", "Midtown"):
+  → Diversifique dentro da região
+  → Mencione sub-bairros/áreas específicas
+  → Cubra diferentes partes da região
 
 Para cada item, forneça EXATAMENTE as informações em formato JSON (name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl).
 

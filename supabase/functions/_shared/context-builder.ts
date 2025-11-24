@@ -122,15 +122,66 @@ function checkIfHoliday(date: Date): string | null {
 
 // Helper: Get local context based on region
 function getLocalContext(region: string): string {
-  const contexts: { [key: string]: string } = {
-    "Manhattan": "Centro de NYC, inclui Midtown, Upper East/West Side, Lower Manhattan, Greenwich Village, SoHo, Tribeca, Harlem. Metrô muito acessível. Tudo fica relativamente perto.",
-    "Brooklyn": "Do outro lado do East River. Inclui Williamsburg (hipster), DUMBO (vista para Manhattan), Park Slope (família), Coney Island (praia). Metrô conecta bem, mas distâncias maiores.",
-    "Queens": "Borough mais diverso. Flushing (comida asiática incrível), Astoria (grega), Long Island City (arte). Mais afastado, considere tempo extra no metrô.",
-    "Bronx": "Yankee Stadium, Bronx Zoo, New York Botanical Garden, Arthur Avenue (Little Italy autêntica). Geralmente requer mais tempo de deslocamento.",
-    "Staten Island": "Mais residencial, menos turístico. Staten Island Ferry é grátis e oferece ótima vista da Estátua da Liberdade. Considere apenas se tiver tempo extra."
+  // 1. Boroughs principais
+  const boroughContexts: { [key: string]: string } = {
+    "Manhattan": "Centro de NYC, ilha densamente povoada com principais atrações turísticas, business district, teatros da Broadway, museus mundialmente famosos.",
+    "Brooklyn": "Do outro lado do East River. Brooklyn Bridge, Prospect Park, DUMBO, Williamsburg (bairro hipster), Coney Island (praia e parque de diversões).",
+    "Queens": "Borough mais diverso etnicamente. Flushing Meadows Park, US Open (tênis), aeroportos JFK e LaGuardia.",
+    "Bronx": "Norte de Manhattan. Yankee Stadium, Bronx Zoo (um dos maiores zoológicos do mundo), Jardim Botânico.",
+    "Staten Island": "Menos turístico, mais residencial. Ferry gratuito com vista da Estátua da Liberdade."
   };
   
-  return contexts[region] || "Região de Nova York";
+  // 2. Bairros e pontos específicos de Manhattan e NYC
+  const neighborhoodContexts: { [key: string]: string } = {
+    "Columbus Circle": "Canto sudoeste do Central Park (59th St & Broadway). Próximo: Central Park (caminhada), Lincoln Center (5 min), Time Warner Center (no local), Hell's Kitchen (10 min oeste). Metrô: A/C/D/1 lines.",
+    "Times Square": "Centro de Midtown (42nd St & Broadway). Próximo: Teatro District, Rockefeller Center (10 min norte), Bryant Park (5 min leste), Hell's Kitchen (10 min oeste). Metrô: N/Q/R/W/S/1/2/3/7.",
+    "Central Park": "Enorme parque de 59th a 110th St. Próximo: Upper West/East Side, Museums Mile (leste), Columbus Circle (sul). Metrô: várias linhas nas bordas.",
+    "SoHo": "Sul de Houston St. Arte, moda, arquitetura. Próximo: Tribeca (sul), Greenwich Village (norte), Chinatown (leste). Metrô: N/R/W, 6, A/C/E.",
+    "Greenwich Village": "Bairro boêmio. Washington Square Park. Próximo: SoHo (sul), Chelsea (oeste), Union Square (norte). Metrô: A/C/E/B/D/F/M.",
+    "Upper West Side": "Entre Central Park e Hudson River, 59th-110th St. Próximo: Central Park, Lincoln Center, Museum of Natural History. Metrô: 1/2/3, B/C.",
+    "Upper East Side": "Entre Central Park e East River, 59th-96th St. Museums Mile. Próximo: Central Park, Metropolitan Museum. Metrô: 4/5/6, Q.",
+    "Chelsea": "West 14th-34th St. High Line, galerias, Chelsea Market. Próximo: Greenwich Village (sul), Hell's Kitchen (norte). Metrô: A/C/E, 1/2/3.",
+    "Midtown": "34th-59th St. Coração comercial. Empire State, Rockefeller, Times Square, Bryant Park. Metrô: todas as linhas principais.",
+    "Financial District": "Sul de Manhattan. Wall Street, 9/11 Memorial, Battery Park. Próximo: Tribeca (norte), Brooklyn via ponte. Metrô: 1/2/3/4/5, R/W.",
+    "Tribeca": "Triangle Below Canal. Restaurantes, filmes. Próximo: SoHo (norte), Financial District (sul). Metrô: 1/2/3, A/C/E.",
+    "Chinatown": "Canal St area. Comida, cultura. Próximo: Little Italy (norte), Lower East Side (leste), Tribeca (oeste). Metrô: N/R/W, J/Z, 6.",
+    "Brooklyn Heights": "Promenade com vista incrível de Manhattan. Próximo: DUMBO (leste), Downtown Brooklyn (sudeste). Metrô: 2/3, A/C, F.",
+    "DUMBO": "Down Under Manhattan Bridge Overpass. Arte, vista, Brooklyn Bridge Park. Próximo: Brooklyn Heights (oeste). Metrô: F, A/C.",
+    "Williamsburg": "Hipster, arte, música, comida. Norte do Brooklyn. Metrô: L train, J/M/Z.",
+    "Coney Island": "Praia, boardwalk, parque de diversões. Extremo sul do Brooklyn. Metrô: D/F/N/Q (fim da linha).",
+    "Hell's Kitchen": "West 34th-59th St (oeste de Midtown). Restaurantes diversos, teatro off-Broadway. Próximo: Times Square (leste), Hudson Yards (sul). Metrô: A/C/E, 1/2/3.",
+    "East Village": "Leste da Broadway, abaixo de 14th St. Bares, música ao vivo, Tompkins Square Park. Próximo: Greenwich Village (oeste), Lower East Side (sul). Metrô: L, 6, N/R/W.",
+    "Lower East Side": "Sul do East Village. História de imigração, nightlife, shopping alternativo. Próximo: Chinatown (oeste), Williamsburg via ponte. Metrô: F, J/M/Z.",
+    "Harlem": "Norte de Manhattan (acima de 110th St). Cultura afro-americana, Apollo Theater, soul food. Próximo: Columbia University (sul), Bronx (norte). Metrô: 2/3, A/B/C/D.",
+    "Hudson Yards": "Novo desenvolvimento em West Side (30th-34th St). The Vessel, The Shed, shopping. Próximo: Chelsea (sul), Hell's Kitchen (norte). Metrô: 7 train."
+  };
+  
+  // 3. Verificar se é ponto específico conhecido
+  const regionLower = region.trim();
+  
+  // Match exato (case-insensitive)
+  for (const [key, value] of Object.entries(neighborhoodContexts)) {
+    if (regionLower.toLowerCase() === key.toLowerCase()) {
+      return value;
+    }
+  }
+  
+  // Match parcial (ex: "central park south" -> "Central Park")
+  for (const [key, value] of Object.entries(neighborhoodContexts)) {
+    if (regionLower.toLowerCase().includes(key.toLowerCase())) {
+      return value;
+    }
+  }
+  
+  // Se for um dos boroughs
+  for (const [key, value] of Object.entries(boroughContexts)) {
+    if (regionLower.toLowerCase() === key.toLowerCase()) {
+      return value;
+    }
+  }
+  
+  // 4. Fallback inteligente
+  return `Ponto específico em Nova York: "${region}". Busque atrações PRÓXIMAS a este local (raio de 10-15 minutos a pé). Priorize opções caminháveis e mencione distâncias/tempos de deslocamento.`;
 }
 
 // Helper: Extract preferences from historical programs
