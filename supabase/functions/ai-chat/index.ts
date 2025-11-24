@@ -49,11 +49,29 @@ serve(async (req) => {
       throw new Error('API keys not configured');
     }
 
-    // Build complete travel context
+    // Extract date and region from program if available
+    let contextDate: string | undefined;
+    let contextRegion: string | undefined;
+    
+    if (!isGlobalChat && programData) {
+      contextDate = programData.date;
+      // Extract region from address if available
+      if (programData.address) {
+        // Try to extract neighborhood/region from address
+        const addressParts = programData.address.split(',');
+        if (addressParts.length > 0) {
+          contextRegion = addressParts[0].trim();
+        }
+      }
+    }
+
+    // Build complete travel context with date and region
     const travelContext = await buildTravelContext(
       userId,
       supabaseUrl,
-      supabaseKey
+      supabaseKey,
+      contextDate,
+      contextRegion
     );
 
     // Fetch chat history based on chat mode
@@ -93,11 +111,27 @@ serve(async (req) => {
       specificContext += `\nConversando de forma GERAL sobre toda a viagem. Considere TODOS os programas ao responder.`;
     } else {
       specificContext += `\nPrograma específico sendo visualizado:\n`;
-      specificContext += `- ${programData.title} - ${programData.date}\n`;
-      specificContext += `- ${programData.address || "Local não especificado"}`;
+      specificContext += `- Título: ${programData.title}\n`;
+      specificContext += `- Data: ${programData.date}\n`;
+      if (programData.start_time) specificContext += `- Horário: ${programData.start_time}${programData.end_time ? ' - ' + programData.end_time : ''}\n`;
+      if (programData.address) specificContext += `- Local: ${programData.address}\n`;
+      if (programData.description) specificContext += `- Descrição: ${programData.description}\n`;
+      if (programData.notes) specificContext += `- Observações: ${programData.notes}\n`;
+      specificContext += `\nConversando especificamente sobre ESTE programa. Use o contexto completo da viagem (hotel, perfil, outras atividades) para enriquecer suas respostas.`;
     }
 
-    specificContext += `\n\nVocê é um assistente de viagem amigável e prestativo. Responda de forma personalizada considerando TODO o contexto do viajante, respeitando suas preferências, restrições e necessidades.`;
+    specificContext += `\n\n⚠️ REGRAS CRÍTICAS:
+1. Você TEM ACESSO a TODO o contexto da viagem (hotel, perfil do viajante, todas as preferências e restrições)
+2. SEMPRE considere o contexto completo ao responder, incluindo:
+   - Localização do hotel (se disponível)
+   - Perfil dos viajantes (idades, interesses)
+   - Restrições alimentares e de mobilidade
+   - Budget e ritmo preferidos
+   - Outros programas já planejados
+3. Se o usuário perguntar sobre informações que VOCÊ TEM no contexto (como hotel, preferências, etc.), RESPONDA com essas informações
+4. Seja um assistente prestativo que CONHECE o viajante e sua viagem
+
+Você é um assistente de viagem amigável e prestativo. Responda de forma personalizada considerando TODO o contexto do viajante.`;
 
     const tripContext = buildContextualPrompt(travelContext, specificContext);
 
