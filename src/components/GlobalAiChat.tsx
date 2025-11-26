@@ -5,17 +5,15 @@ import { Send, Trash2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
+import { Message } from "@/types";
+import { useUser } from "@/hooks/useUser";
 
 interface GlobalAiChatProps {
   onClose?: () => void;
 }
 
 export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
+  const { userId } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,10 +24,13 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
   // Load chat history on mount
   useEffect(() => {
     const loadChatHistory = async () => {
+      if (!userId) return;
+      
       try {
         const { data, error } = await supabase
           .from("global_chat_messages")
           .select("role, content")
+          .eq("user_id", userId)
           .order("created_at", { ascending: true });
 
         if (error) {
@@ -45,7 +46,7 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
     };
 
     loadChatHistory();
-  }, []);
+  }, [userId]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -108,15 +109,13 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
   };
 
   const clearChat = async () => {
+    if (!userId) return;
+    
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { error } = await supabase
         .from("global_chat_messages")
         .delete()
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
 
       if (error) throw error;
 

@@ -13,17 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-
-interface Program {
-  id?: string;
-  title: string;
-  description?: string;
-  date: string;
-  start_time?: string;
-  end_time?: string;
-  address?: string;
-  notes?: string;
-}
+import { Program } from "@/types";
 
 interface ProgramDialogProps {
   open: boolean;

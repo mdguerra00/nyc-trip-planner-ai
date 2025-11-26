@@ -11,6 +11,7 @@ import ProgramDetail from "./pages/ProgramDetail";
 import TravelProfile from "./pages/TravelProfile";
 import NotFound from "./pages/NotFound";
 import { BottomNav } from "./components/BottomNav";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -22,10 +23,10 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<Calendar />} />
-          <Route path="/list" element={<ProgramList />} />
-          <Route path="/profile" element={<TravelProfile />} />
-          <Route path="/program/:id" element={<ProgramDetail />} />
+          <Route path="/" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+          <Route path="/list" element={<ProtectedRoute><ProgramList /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><TravelProfile /></ProtectedRoute>} />
+          <Route path="/program/:id" element={<ProtectedRoute><ProgramDetail /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <BottomNav />

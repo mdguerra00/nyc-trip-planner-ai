@@ -6,21 +6,7 @@ import { Send, Trash2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
-
-interface Program {
-  id: string;
-  title: string;
-  description?: string;
-  address?: string;
-  date: string;
-  start_time?: string;
-  end_time?: string;
-}
+import { Message, Program } from "@/types";
 
 interface AiChatProps {
   program: Program;
