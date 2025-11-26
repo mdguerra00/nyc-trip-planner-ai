@@ -63,6 +63,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [optimizationApplied, setOptimizationApplied] = useState<any>(null);
 
   const resetDialog = () => {
     setStep(1);
@@ -257,6 +258,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       setOrganizedPrograms(data.itinerary?.programs || []);
       setItinerarySummary(data.itinerary?.summary || "");
       setWarnings(data.itinerary?.warnings || []);
+      setOptimizationApplied(data.itinerary?.optimizationApplied || null);
       setStep(3);
       
       toast({
@@ -671,7 +673,7 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
         {/* Step 3: Preview Organized Itinerary */}
         {step === 3 && (
           <div className="space-y-4 py-4">
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
               <Badge variant="secondary" className="flex items-center gap-1">
                 <Brain className="w-3 h-3" />
                 Gemini
@@ -679,7 +681,31 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               <span className="text-sm text-muted-foreground">
                 {organizedPrograms.length} programas organizados
               </span>
+              {optimizationApplied?.endNearNextCommitment && (
+                <Badge variant="default" className="flex items-center gap-1 bg-primary">
+                  🎯 Otimizado para próximo compromisso
+                </Badge>
+              )}
             </div>
+
+            {optimizationApplied?.endNearNextCommitment && (
+              <Card className="p-4 bg-primary/10 border-primary/30">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Otimização Geográfica Aplicada
+                  </h4>
+                  <p className="text-sm">
+                    ✅ Itinerário organizado para terminar próximo ao seu próximo compromisso: <strong>{optimizationApplied.nextCommitmentTitle}</strong>
+                  </p>
+                  {optimizationApplied.bufferMinutes && (
+                    <p className="text-xs text-muted-foreground">
+                      💡 Buffer de {optimizationApplied.bufferMinutes} minutos reservado para deslocamento
+                    </p>
+                  )}
+                </div>
+              </Card>
+            )}
 
             {itinerarySummary && (
               <Card className="p-4 bg-muted/50">
@@ -718,6 +744,11 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
                       </p>
                       {program.notes && (
                         <p className="italic">💡 {program.notes}</p>
+                      )}
+                      {(program as any).transitToNext && (
+                        <p className="text-primary font-medium flex items-center gap-1">
+                          🚇 {(program as any).transitToNext}
+                        </p>
                       )}
                     </div>
                   </div>
