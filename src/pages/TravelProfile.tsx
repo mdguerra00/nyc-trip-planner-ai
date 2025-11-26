@@ -11,9 +11,13 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, User } from "lucide-react";
+import { Loader2, Plus, Trash2, User, CalendarIcon } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 const travelerSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -22,6 +26,9 @@ const travelerSchema = z.object({
 });
 
 const profileSchema = z.object({
+  start_date: z.date().optional(),
+  end_date: z.date().optional(),
+  hotel_address: z.string().optional(),
   travelers: z.array(travelerSchema).min(1, "Adicione pelo menos um viajante"),
   dietary_restrictions: z.array(z.string()).optional(),
   mobility_notes: z.string().optional(),
@@ -75,6 +82,9 @@ export default function TravelProfile() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
+      start_date: undefined,
+      end_date: undefined,
+      hotel_address: "",
       travelers: [{ name: "", age: undefined, interests: [] }],
       dietary_restrictions: [],
       mobility_notes: "",
@@ -95,27 +105,31 @@ export default function TravelProfile() {
     if (!userId) return;
     
     try {
-      const { data, error } = await supabase
-        .from("travel_profile")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const [profileResult, tripConfigResult] = await Promise.all([
+        supabase.from("travel_profile").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("trip_config").select("*").eq("user_id", userId).maybeSingle(),
+      ]);
 
-      if (error) throw error;
+      if (profileResult.error) throw profileResult.error;
+      if (tripConfigResult.error) throw tripConfigResult.error;
 
-      if (data) {
-        form.reset({
-          travelers: data.travelers as any[] || [{ name: "", age: undefined, interests: [] }],
-          dietary_restrictions: data.dietary_restrictions || [],
-          mobility_notes: data.mobility_notes || "",
-          pace: (data.pace as "relaxed" | "moderate" | "intense") || "moderate",
-          budget_level: (data.budget_level as "budget" | "moderate" | "luxury") || "moderate",
-          preferred_categories: data.preferred_categories || [],
-          avoid_topics: data.avoid_topics || [],
-          interests: data.interests || [],
-          notes: data.notes || "",
-        });
-      }
+      const profileData = profileResult.data;
+      const tripConfigData = tripConfigResult.data;
+
+      form.reset({
+        start_date: tripConfigData?.start_date ? new Date(tripConfigData.start_date + "T00:00:00") : undefined,
+        end_date: tripConfigData?.end_date ? new Date(tripConfigData.end_date + "T00:00:00") : undefined,
+        hotel_address: tripConfigData?.hotel_address || "",
+        travelers: profileData?.travelers as any[] || [{ name: "", age: undefined, interests: [] }],
+        dietary_restrictions: profileData?.dietary_restrictions || [],
+        mobility_notes: profileData?.mobility_notes || "",
+        pace: (profileData?.pace as "relaxed" | "moderate" | "intense") || "moderate",
+        budget_level: (profileData?.budget_level as "budget" | "moderate" | "luxury") || "moderate",
+        preferred_categories: profileData?.preferred_categories || [],
+        avoid_topics: profileData?.avoid_topics || [],
+        interests: profileData?.interests || [],
+        notes: profileData?.notes || "",
+      });
     } catch (error) {
       console.error("Error loading profile:", error);
       toast.error("Erro ao carregar perfil");
@@ -129,7 +143,7 @@ export default function TravelProfile() {
     
     setSaving(true);
     try {
-      const { error } = await supabase
+      const profilePromise = supabase
         .from("travel_profile")
         .upsert({
           user_id: userId,
@@ -146,7 +160,21 @@ export default function TravelProfile() {
           onConflict: 'user_id'
         });
 
-      if (error) throw error;
+      const tripConfigPromise = supabase
+        .from("trip_config")
+        .upsert({
+          user_id: userId,
+          start_date: values.start_date ? format(values.start_date, "yyyy-MM-dd") : null,
+          end_date: values.end_date ? format(values.end_date, "yyyy-MM-dd") : null,
+          hotel_address: values.hotel_address || null,
+        }, {
+          onConflict: 'user_id'
+        });
+
+      const [profileResult, tripConfigResult] = await Promise.all([profilePromise, tripConfigPromise]);
+
+      if (profileResult.error) throw profileResult.error;
+      if (tripConfigResult.error) throw tripConfigResult.error;
 
       toast.success("Perfil salvo com sucesso!");
       navigate("/");
@@ -177,6 +205,114 @@ export default function TravelProfile() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Configuração da Viagem */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuração da Viagem</CardTitle>
+              <CardDescription>Quando você vai viajar e onde ficará hospedado?</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="start_date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Data de Início</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "dd/MM/yyyy")
+                              ) : (
+                                <span>Selecione a data</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="end_date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Data de Fim</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "dd/MM/yyyy")
+                              ) : (
+                                <span>Selecione a data</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="hotel_address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Endereço do Hotel</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: 303 Lexington Avenue, New York, NY" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Endereço completo onde você ficará hospedado
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
           {/* Viajantes */}
           <Card>
             <CardHeader>
