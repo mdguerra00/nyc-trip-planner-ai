@@ -83,6 +83,48 @@ serve(async (req) => {
         ).join('\n')
       : 'Nenhum programa existente neste dia';
 
+    // Identificar próximo compromisso (após o horário de fim do itinerário)
+    const nextCommitment = existingPrograms?.find(p => {
+      const programStart = p.start_time;
+      return programStart && programStart > endTime;
+    });
+
+    const nextCommitmentText = nextCommitment 
+      ? `
+⭐⭐⭐ OTIMIZAÇÃO CRÍTICA COM PRÓXIMO COMPROMISSO ⭐⭐⭐
+
+🎯 PRÓXIMO COMPROMISSO DO DIA:
+   - Título: ${nextCommitment.title}
+   - Horário: ${nextCommitment.start_time}
+   - Local: ${nextCommitment.address || 'não especificado'}
+   
+⚠️ REGRAS OBRIGATÓRIAS DE OTIMIZAÇÃO:
+1. O ÚLTIMO programa do itinerário DEVE terminar GEOGRAFICAMENTE PRÓXIMO a "${nextCommitment.address || 'o próximo compromisso'}"
+2. RESERVE no mínimo 30-45 minutos de buffer antes de ${nextCommitment.start_time}
+3. No campo "notes" do ÚLTIMO programa, INCLUA:
+   - Tempo estimado de deslocamento até ${nextCommitment.address || 'o próximo local'}
+   - Melhor forma de transporte (metrô com linhas específicas, táxi, a pé)
+   - Dicas para chegar com tranquilidade
+4. ORGANIZE toda a sequência de programas para CONVERGIR naturalmente ao destino final
+5. Adicione ao campo "transitToNext" do último programa: "X min de [transporte] até [próximo compromisso]"
+`
+      : '';
+
+    // Identificar compromisso anterior (antes do horário de início)
+    const previousCommitment = existingPrograms?.filter(p => {
+      return p.end_time && p.end_time <= startTime;
+    }).pop(); // Pegar o último que termina antes
+
+    const previousCommitmentText = previousCommitment
+      ? `
+📍 COMPROMISSO ANTERIOR DO DIA:
+   - ${previousCommitment.title} termina às ${previousCommitment.end_time}
+   - Local: ${previousCommitment.address || 'não especificado'}
+   
+💡 SUGESTÃO: Se possível, iniciar o itinerário próximo a este local para otimizar deslocamento.
+`
+      : '';
+
     const attractionsText = selectedAttractions.map((a: any) => 
       `- ${a.name} (${a.type})\n  Endereço: ${a.address}\n  Horários: ${a.hours}\n  Duração estimada: ${a.estimatedDuration} minutos\n  Descrição: ${a.description}`
     ).join('\n\n');
@@ -116,6 +158,9 @@ ANTES DE ORGANIZAR, VERIFIQUE:
 - Agrupe atrações próximas no mesmo período
 - Considere o tempo de deslocamento entre cada atividade
 
+${nextCommitmentText}
+${previousCommitmentText}
+
 HORÁRIO DESEJADO: ${startTime || "09:00"} até ${endTime || "22:00"}
 
 PROGRAMAS JÁ EXISTENTES NESTE DIA:
@@ -133,6 +178,7 @@ SUA TAREFA:
    - Fluxo natural do dia (café → atrações → almoço → mais atrações → jantar)
    - Padrões de preferência do perfil do viajante
    - Condições climáticas da estação
+   ${nextCommitment ? '- **CONVERGÊNCIA ao próximo compromisso** (regra obrigatória acima)' : ''}
 
 2. NÃO sobrescrever ou conflitar com programas existentes
 3. Preencher gaps de tempo livre entre programas existentes
@@ -148,11 +194,18 @@ FORMATO DE RESPOSTA (JSON válido, sem markdown):
       "start_time": "HH:MM",
       "end_time": "HH:MM",
       "address": "Endereço completo exato",
-      "notes": "Dicas práticas, transporte, tempo de translado"
+      "notes": "Dicas práticas, transporte, tempo de translado",
+      "transitToNext": "Informação sobre deslocamento para próxima atividade (opcional, obrigatório se houver próximo compromisso)"
     }
   ],
   "summary": "Resumo da organização do dia com lógica aplicada",
-  "warnings": ["Avisos sobre conflitos ou ajustes necessários"]
+  "warnings": ["Avisos sobre conflitos ou ajustes necessários"],
+  "optimizationApplied": {
+    "endNearNextCommitment": ${!!nextCommitment},
+    "nextCommitmentTitle": "${nextCommitment?.title || ''}",
+    "bufferMinutes": 45,
+    "suggestedDeparture": "Horário calculado para sair com folga"
+  }
 }
 `;
 
