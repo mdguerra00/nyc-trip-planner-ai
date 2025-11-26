@@ -8,17 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-interface Program {
-  id: string;
-  title: string;
-  description?: string;
-  date: string;
-  start_time?: string;
-  end_time?: string;
-  address?: string;
-  notes?: string;
-}
+import { Program } from "@/types";
 
 const ProgramList = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -42,7 +32,7 @@ const ProgramList = () => {
     }
 
     if (data) {
-      setPrograms(data);
+      setPrograms(data as Program[]);
     }
   };
 

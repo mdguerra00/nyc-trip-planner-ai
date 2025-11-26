@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare } from "lucide-react";
+import { Program } from "@/types";
+import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -31,18 +33,8 @@ import { Sparkles } from "lucide-react";
 moment.locale("pt-br");
 const localizer = momentLocalizer(moment);
 
-interface Program {
-  id: string;
-  title: string;
-  description?: string;
-  date: string;
-  start_time?: string;
-  end_time?: string;
-  address?: string;
-  notes?: string;
-}
-
 const Calendar = () => {
+  const { signOut } = useUser();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -54,16 +46,8 @@ const Calendar = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    checkAuth();
     loadPrograms();
   }, []);
-
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate("/auth");
-    }
-  };
 
   const loadPrograms = async () => {
     const { data, error } = await supabase
@@ -77,8 +61,8 @@ const Calendar = () => {
       return;
     }
 
-    if (data) {
-      setPrograms(data);
+      if (data) {
+        setPrograms(data as Program[]);
       const formattedEvents = data.map((program) => {
         // Parse date in local timezone to avoid timezone shift issues
         const [year, month, day] = program.date.split('-').map(Number);
@@ -112,7 +96,7 @@ const Calendar = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate("/auth");
   };
 

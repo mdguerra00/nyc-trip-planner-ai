@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Sparkles, Search, Brain, MapPin, Clock, Calendar, ExternalLink } from "lucide-react";
+import { useUser } from "@/hooks/useUser";
 
 interface Attraction {
   id: string;
@@ -40,6 +41,7 @@ interface ItineraryDialogProps {
 
 export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDialogProps) {
   const { toast } = useToast();
+  const { userId } = useUser();
   const [step, setStep] = useState(1);
   
   // Step 1: Configuration
@@ -103,15 +105,12 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
     setLoadingAttractions(true);
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
       const { data, error } = await supabase.functions.invoke('discover-attractions', {
         body: { 
           region, 
           date, 
           requestMore: appendMode,
-          userId: user?.id,
+          userId: userId,
         }
       });
 
@@ -161,15 +160,12 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
     setLoadingAttractions(true);
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      
       const { data, error } = await supabase.functions.invoke('discover-attractions', {
         body: { 
           region, 
           date, 
           userSuggestion: userSuggestion.trim(),
-          userId: user?.id,
+          userId: userId,
         }
       });
 

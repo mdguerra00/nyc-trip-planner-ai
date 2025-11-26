@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, User } from "lucide-react";
+import { useUser } from "@/hooks/useUser";
 
 const travelerSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -67,9 +68,9 @@ const INTEREST_OPTIONS = [
 
 export default function TravelProfile() {
   const navigate = useNavigate();
+  const { userId } = useUser();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -91,18 +92,13 @@ export default function TravelProfile() {
   }, []);
 
   const loadProfile = async () => {
+    if (!userId) return;
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-      setUserId(user.id);
-
       const { data, error } = await supabase
         .from("travel_profile")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (error) throw error;

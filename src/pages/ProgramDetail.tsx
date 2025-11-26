@@ -22,27 +22,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ProgramDialog } from "@/components/ProgramDialog";
 import AiChat from "@/components/AiChat";
-
-interface Program {
-  id: string;
-  title: string;
-  description?: string;
-  date: string;
-  start_time?: string;
-  end_time?: string;
-  address?: string;
-  notes?: string;
-  ai_suggestions?: string | null;
-  ai_faq?: any;
-}
+import { Program, FaqItem } from "@/types";
+import { useUser } from "@/hooks/useUser";
 
 const ProgramDetail = () => {
   const { id } = useParams();
+  const { userId } = useUser();
   const [program, setProgram] = useState<Program | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [aiSuggestions, setAiSuggestions] = useState("");
-  const [aiFaq, setAiFaq] = useState<Array<{ question: string; answer: string; details?: string; loadingDetails?: boolean }>>([]);
+  const [aiFaq, setAiFaq] = useState<FaqItem[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -50,18 +39,9 @@ const ProgramDetail = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const initializeComponent = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      }
-      
-      if (id) {
-        await loadProgram();
-      }
-    };
-    
-    initializeComponent();
+    if (id) {
+      loadProgram();
+    }
   }, [id]);
 
   const loadProgram = async () => {
@@ -188,7 +168,7 @@ const ProgramDetail = () => {
       // Save updated FAQ to database
       const { error: updateError } = await supabase
         .from("programs")
-        .update({ ai_faq: updatedFaq })
+        .update({ ai_faq: updatedFaq as any })
         .eq("id", program.id);
 
       if (updateError) {
