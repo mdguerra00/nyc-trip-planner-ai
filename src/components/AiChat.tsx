@@ -107,9 +107,21 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
       // Remove user message on error
       setMessages((prev) => prev.slice(0, -1));
       
+      let errorTitle = "Erro ao enviar mensagem";
+      let errorDescription = error.message || "Tente novamente mais tarde";
+      
+      // Handle specific error codes
+      if (error.message?.includes("429") || error.message?.toLowerCase().includes("rate limit")) {
+        errorTitle = "Limite de requisições atingido";
+        errorDescription = "Você está fazendo muitas perguntas. Por favor, aguarde um momento antes de tentar novamente.";
+      } else if (error.message?.includes("402") || error.message?.toLowerCase().includes("insufficient credits")) {
+        errorTitle = "Créditos insuficientes";
+        errorDescription = "Os créditos de IA foram esgotados. Entre em contato com o suporte.";
+      }
+      
       toast({
-        title: "Erro ao enviar mensagem",
-        description: error.message || "Tente novamente mais tarde",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive",
       });
     } finally {

@@ -103,8 +103,16 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
     setLoadingAttractions(true);
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { data, error } = await supabase.functions.invoke('discover-attractions', {
-        body: { region, date, requestMore: appendMode }
+        body: { 
+          region, 
+          date, 
+          requestMore: appendMode,
+          userId: user?.id,
+        }
       });
 
       if (error) throw error;
@@ -153,8 +161,16 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
     setLoadingAttractions(true);
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { data, error } = await supabase.functions.invoke('discover-attractions', {
-        body: { region, date, userSuggestion: userSuggestion.trim() }
+        body: { 
+          region, 
+          date, 
+          userSuggestion: userSuggestion.trim(),
+          userId: user?.id,
+        }
       });
 
       if (error) throw error;
