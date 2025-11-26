@@ -109,7 +109,10 @@ const ProgramDetail = () => {
     try {
       // Get AI suggestions
       const { data, error } = await supabase.functions.invoke("ai-suggestions", {
-        body: { program },
+        body: { 
+          program,
+          userId: userId,
+        },
       });
 
       if (error) throw error;
@@ -171,6 +174,8 @@ const ProgramDetail = () => {
         body: {
           topic: `${question}\n${answer}`,
           context: aiSuggestions,
+          userId: userId,
+          programDate: program.date,
         },
       });
 

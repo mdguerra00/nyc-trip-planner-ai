@@ -85,9 +85,21 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
       // Remove user message on error
       setMessages((prev) => prev.slice(0, -1));
       
+      let errorTitle = "Erro ao enviar mensagem";
+      let errorDescription = error.message || "Tente novamente mais tarde";
+      
+      // Handle specific error codes
+      if (error.message?.includes("429") || error.message?.toLowerCase().includes("rate limit")) {
+        errorTitle = "Limite de requisições atingido";
+        errorDescription = "Você está fazendo muitas perguntas. Por favor, aguarde um momento antes de tentar novamente.";
+      } else if (error.message?.includes("402") || error.message?.toLowerCase().includes("insufficient credits")) {
+        errorTitle = "Créditos insuficientes";
+        errorDescription = "Os créditos de IA foram esgotados. Entre em contato com o suporte.";
+      }
+      
       toast({
-        title: "Erro ao enviar mensagem",
-        description: error.message || "Tente novamente mais tarde",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive",
       });
     } finally {
@@ -97,10 +109,14 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
 
   const clearChat = async () => {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { error } = await supabase
         .from("global_chat_messages")
         .delete()
-        .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all
+        .eq("user_id", user.id);
 
       if (error) throw error;
 
