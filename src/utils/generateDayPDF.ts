@@ -29,11 +29,47 @@ function truncateText(text: string, maxLength: number): string {
   return text.substring(0, maxLength) + '...';
 }
 
-// Função para resumir mensagens de chat
-function summarizeMessages(messages: ChatMessage[], maxCount: number): ChatMessage[] {
-  if (messages.length <= maxCount) return messages;
-  // Pegar as últimas N mensagens (mais recentes são mais relevantes)
-  return messages.slice(-maxCount);
+// Função para extrair locais e atrações mencionados nas conversas de IA
+function extractMentionedPlaces(messages: ChatMessage[]): string[] {
+  const places = new Set<string>();
+  
+  // Processar apenas mensagens da IA
+  const aiMessages = messages.filter(m => m.role === 'assistant');
+  
+  for (const msg of aiMessages) {
+    const content = removeEmojis(msg.content);
+    
+    // Padrões para encontrar locais e atrações
+    // 1. Palavras com maiúsculas seguidas (nomes próprios)
+    const properNouns = content.match(/\b[A-Z][a-zà-ú]+(?:\s+[A-Z][a-zà-ú]+)+\b/g) || [];
+    
+    // 2. Padrões específicos como "restaurante X", "museu Y", etc.
+    const patterns = [
+      /(?:restaurante|bar|café|cafeteria|lanchonete)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
+      /(?:museu|galeria|teatro|cinema|parque)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
+      /(?:loja|shopping|mercado|centro)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
+      /(?:em|no|na|para|visite|vá até|confira)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
+    ];
+    
+    for (const pattern of patterns) {
+      const matches = content.matchAll(pattern);
+      for (const match of matches) {
+        if (match[1] && match[1].length > 3 && match[1].length < 50) {
+          places.add(match[1].trim());
+        }
+      }
+    }
+    
+    // Adicionar nomes próprios que parecem ser lugares (mais de 2 palavras)
+    for (const noun of properNouns) {
+      const words = noun.split(/\s+/);
+      if (words.length >= 2 && words.length <= 5 && noun.length < 60) {
+        places.add(noun);
+      }
+    }
+  }
+  
+  return Array.from(places).sort();
 }
 
 // Função para remover emojis e caracteres especiais não-ASCII
@@ -167,15 +203,6 @@ export async function generateDayPDF(date: string, userId: string) {
 
     if (chatsError) throw chatsError;
 
-    // Buscar mensagens do chat global relevantes
-    const { data: globalChats, error: globalError } = await supabase
-      .from('global_chat_messages')
-      .select('role, content, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true });
-
-    if (globalError) throw globalError;
-
     // Criar o PDF com margens consistentes
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
@@ -289,18 +316,15 @@ export async function generateDayPDF(date: string, userId: string) {
         yPosition += aiLines.length * 4 + 5;
       }
 
-      // FAQ da IA (primeiras 3 perguntas apenas)
+      // FAQ da IA (completas, sem truncamento)
       if (program.ai_faq && Array.isArray(program.ai_faq) && program.ai_faq.length > 0) {
         if (yPosition > pageHeight - 60) {
           doc.addPage();
           yPosition = margin + 5;
         }
-        yPosition = addStyledHeader(doc, '> FAQ', yPosition, pageWidth);
-
-        // Limitar a 3 FAQs mais relevantes
-        const limitedFaqs = program.ai_faq.slice(0, 3);
+        yPosition = addStyledHeader(doc, '> PERGUNTAS FREQUENTES (FAQ)', yPosition, pageWidth);
         
-        for (const faq of limitedFaqs) {
+        for (const faq of program.ai_faq) {
           if (yPosition > pageHeight - 35) {
             doc.addPage();
             yPosition = margin + 5;
@@ -309,14 +333,14 @@ export async function generateDayPDF(date: string, userId: string) {
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8);
           doc.setTextColor(0, 0, 0);
-          const question = truncateText(removeEmojis(faq.question), 120);
+          const question = removeEmojis(faq.question);
           const questionLines = doc.splitTextToSize(`P: ${question}`, contentWidth - 9);
           doc.text(questionLines, margin + 6, yPosition);
           yPosition += questionLines.length * 3.5 + 1;
 
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(60, 60, 60);
-          const answer = truncateText(removeEmojis(faq.answer), 200);
+          const answer = removeEmojis(faq.answer);
           const answerLines = doc.splitTextToSize(`R: ${answer}`, contentWidth - 9);
           doc.text(answerLines, margin + 6, yPosition);
           yPosition += answerLines.length * 3.5 + 3;
@@ -324,34 +348,29 @@ export async function generateDayPDF(date: string, userId: string) {
         yPosition += 2;
       }
 
-      // Conversas do chat deste programa (últimas 5 mensagens, condensadas)
+      // Locais e atrações mencionados nas conversas de IA
       const programChatMessages = programChats?.filter(m => m.program_id === program.id) || [];
-      const summarizedProgramChats = summarizeMessages(programChatMessages, 5);
+      const mentionedPlaces = extractMentionedPlaces(programChatMessages);
       
-      if (summarizedProgramChats.length > 0) {
+      if (mentionedPlaces.length > 0) {
         if (yPosition > pageHeight - 50) {
           doc.addPage();
           yPosition = margin + 5;
         }
-        yPosition = addStyledHeader(doc, '> CONVERSAS', yPosition, pageWidth);
+        yPosition = addStyledHeader(doc, '> LOCAIS E ATRACOES RELACIONADAS', yPosition, pageWidth);
 
-        for (const msg of summarizedProgramChats) {
-          if (yPosition > pageHeight - 30) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0);
+
+        for (const place of mentionedPlaces) {
+          if (yPosition > pageHeight - 20) {
             doc.addPage();
             yPosition = margin + 5;
           }
-
-          doc.setFontSize(8);
-          const isUser = msg.role === 'user';
-          doc.setFont('helvetica', isUser ? 'bold' : 'normal');
-          doc.setTextColor(isUser ? 0 : 80, isUser ? 0 : 80, isUser ? 0 : 80);
           
-          const prefix = isUser ? '[Voce] ' : '[IA] ';
-          const maxLength = isUser ? 100 : 200;
-          const condensedContent = truncateText(removeEmojis(msg.content), maxLength);
-          const msgLines = doc.splitTextToSize(prefix + condensedContent, contentWidth - 9);
-          doc.text(msgLines, margin + 6, yPosition);
-          yPosition += msgLines.length * 3.5 + 2;
+          doc.text(`- ${place}`, margin + 6, yPosition);
+          yPosition += 5;
         }
         yPosition += 3;
       }
@@ -367,45 +386,7 @@ export async function generateDayPDF(date: string, userId: string) {
       }
     }
 
-    // Conversas globais relevantes (máximo 3 mensagens)
-    const relevantGlobalChats = globalChats?.filter(msg => {
-      const content = msg.content.toLowerCase();
-      const dateStr = formattedDate.toLowerCase();
-      return content.includes(dateStr) || 
-             programs.some(p => content.includes(p.title.toLowerCase()));
-    }) || [];
-
-    const summarizedGlobalChats = summarizeMessages(relevantGlobalChats, 3);
-
-    if (summarizedGlobalChats.length > 0) {
-      if (yPosition > pageHeight - 50) {
-        doc.addPage();
-        yPosition = margin + 5;
-      } else {
-        yPosition += 8;
-      }
-
-      yPosition = addStyledHeader(doc, '> CONVERSAS GERAIS RELACIONADAS', yPosition, pageWidth);
-
-      for (const msg of summarizedGlobalChats) {
-        if (yPosition > pageHeight - 30) {
-          doc.addPage();
-          yPosition = margin + 5;
-        }
-
-        doc.setFontSize(8);
-        const isUser = msg.role === 'user';
-        doc.setFont('helvetica', isUser ? 'bold' : 'normal');
-        doc.setTextColor(isUser ? 0 : 80, isUser ? 0 : 80, isUser ? 0 : 80);
-        
-        const prefix = isUser ? '[Voce] ' : '[IA] ';
-        const maxLength = isUser ? 100 : 200;
-        const condensedContent = truncateText(removeEmojis(msg.content), maxLength);
-        const msgLines = doc.splitTextToSize(prefix + condensedContent, contentWidth - 6);
-        doc.text(msgLines, margin + 3, yPosition);
-        yPosition += msgLines.length * 3.5 + 2;
-      }
-    }
+    // Remover seção de conversas globais (não é mais necessário)
 
     // Rodapé em todas as páginas
     const totalPages = doc.internal.pages.length - 1;
