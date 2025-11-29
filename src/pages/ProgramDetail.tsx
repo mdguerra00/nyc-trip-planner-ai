@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useSwipeable } from "react-swipeable";
 import { useSwipeable } from 'react-swipeable';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ProgramDialog } from "@/components/ProgramDialog";
 import AiChat from "@/components/AiChat";
+import { Program, FaqItem } from "@/types";
+import { Json } from "@/integrations/supabase/types";
+import { useUser } from "@/hooks/useUser";
 import { Program, FaqItem, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { useCallback } from "react";
@@ -72,6 +76,7 @@ const ProgramDetail = () => {
 
   useEffect(() => {
     if (id) {
+      void loadProgram();
       loadProgram();
     }
   }, [id, loadProgram]);
@@ -121,6 +126,16 @@ const ProgramDetail = () => {
 
       if (faqError) throw new Error(faqError.message);
 
+      const faq = (faqData?.faq || []) as FaqItem[];
+      setAiFaq(faq);
+
+      const serializedFaq = faq as unknown as Json;
+
+      const { data: updatedProgram, error: updateError } = await updateProgram(program.id, {
+        ai_suggestions: suggestions,
+        ai_faq: serializedFaq,
+      });
+
       const faq = faqData?.faq || [];
       setAiFaq(faq);
 
@@ -139,6 +154,7 @@ const ProgramDetail = () => {
     } catch (error: unknown) {
       toast({
         title: "Erro ao buscar sugestões",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         description: getErrorMessage(error),
         variant: "destructive",
       });
@@ -168,16 +184,21 @@ const ProgramDetail = () => {
       updatedFaq[index].loadingDetails = false;
       setAiFaq(updatedFaq);
 
+      const serializedFaq = updatedFaq as unknown as Json;
+
+      const { error: updateError } = await updateProgram(program.id, { ai_faq: serializedFaq });
       const { error: updateError } = await updateProgram(program.id, { ai_faq: updatedFaq as unknown as Json });
 
       if (updateError) {
         console.error("Erro ao salvar detalhes:", updateError);
       } else {
+        setProgram({ ...program, ai_faq: serializedFaq });
         setProgram({ ...program, ai_faq: updatedFaq as unknown as Json });
       }
     } catch (error: unknown) {
       toast({
         title: "Erro ao explorar tópico",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         description: getErrorMessage(error),
         variant: "destructive",
       });

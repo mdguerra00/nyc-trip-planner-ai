@@ -1,3 +1,4 @@
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,11 @@ const ProgramList = () => {
       });
       return;
     }
+    setPrograms((data as Program[]) || []);
+  }, [toast]);
 
+  useEffect(() => {
+    void loadPrograms();
     setPrograms((data as Program[]) || []);
   }, [toast]);
 
@@ -70,6 +75,12 @@ const ProgramList = () => {
         description: "O arquivo foi baixado automaticamente",
       });
     } catch (error: unknown) {
+      console.error("Erro ao gerar PDF:", error);
+      toast({
+        title: "Erro ao gerar PDF",
+        description:
+          error instanceof Error ? error.message : "Tente novamente",
+        variant: "destructive",
       console.error('Erro ao gerar PDF:', error);
       toast({
         title: "Erro ao gerar PDF",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Calendar as BigCalendar, momentLocalizer, Event } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
@@ -100,6 +100,7 @@ const Calendar = () => {
   }, [toast]);
 
   useEffect(() => {
+    void loadPrograms();
     loadPrograms();
   }, [loadPrograms]);
 
@@ -124,7 +125,7 @@ const Calendar = () => {
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -137,6 +138,12 @@ const Calendar = () => {
         description: "O arquivo foi baixado automaticamente",
       });
     } catch (error: unknown) {
+      console.error("Erro ao gerar PDF:", error);
+      toast({
+        title: "Erro ao gerar PDF",
+        description:
+          error instanceof Error ? error.message : "Tente novamente",
+        variant: "destructive",
       console.error('Erro ao gerar PDF:', error);
       toast({
         title: "Erro ao gerar PDF",

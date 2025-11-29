@@ -82,6 +82,8 @@ export const saveChatMessage = async (
   role: Message["role"],
   content: string
 ): Promise<ApiResult<boolean>> => {
+  const { error } = await supabase.from("program_chat_messages").insert({
+    program_id: programId,
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { data: null, error: { message: "Usuário não autenticado" } };
 
