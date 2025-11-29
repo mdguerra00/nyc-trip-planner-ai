@@ -77,6 +77,9 @@ Se for atração permanente → confirme que está aberta em ${date}.
 
 Busque informações detalhadas sobre "${userSuggestion}" em Nova York, considerando a região de ${region} e a data ${date}.
 
+⭐ INFORMAÇÕES OBRIGATÓRIAS DE VERIFICAÇÃO:
+Para CADA local, você DEVE incluir dados verificáveis de fontes reais (Google Maps, Yelp, TripAdvisor, etc):
+
 Para este local específico, forneça EXATAMENTE as seguintes informações em formato JSON:
 - name: nome completo oficial
 - type: tipo (atração, restaurante, evento, museu, parque, etc)
@@ -87,8 +90,14 @@ Para este local específico, forneça EXATAMENTE as seguintes informações em f
 - neighborhood: bairro específico
 - imageUrl: URL de uma foto representativa do local
 - infoUrl: URL do site oficial ou Google Maps
+- rating: avaliação média (ex: "4.5/5" ou "4.5 estrelas Google Maps") - OBRIGATÓRIO
+- reviewCount: número aproximado de avaliações (ex: "1200+ avaliações") - OBRIGATÓRIO
+- whyRecommended: motivo ESPECÍFICO da recomendação (ex: "Famoso pelo pastrami desde 1888", "Reconhecido pelo NY Times 2023") - OBRIGATÓRIO
+- verificationUrl: link direto do Google Maps para verificar o local - OBRIGATÓRIO
 
-Retorne um array JSON válido com 1-3 resultados. Apenas JSON, sem texto adicional.`;
+⚠️ Se NÃO encontrar dados verificáveis (rating, reviews) para um local, NÃO o inclua na lista.
+
+Retorne um array JSON válido com 1-3 resultados VERIFICÁVEIS. Apenas JSON, sem texto adicional.`;
     } else if (requestMore) {
       // Request for additional suggestions
       prompt = `${contextualPrefix}
@@ -101,9 +110,19 @@ REMOVA qualquer item de data incorreta.
 Liste OUTRAS atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}. 
 Busque opções DIFERENTES e menos conhecidas, incluindo joias escondidas.
 
-Para cada item, forneça EXATAMENTE as informações em formato JSON (name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl).
+⭐ INFORMAÇÕES OBRIGATÓRIAS DE VERIFICAÇÃO:
+Para CADA local, você DEVE incluir dados verificáveis de fontes reais (Google Maps, Yelp, TripAdvisor, etc):
 
-Retorne um array JSON válido com 6-10 sugestões DIFERENTES. Apenas JSON, sem texto adicional.`;
+Para cada item, forneça EXATAMENTE as informações em formato JSON:
+- name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl
+- rating: avaliação média (ex: "4.5/5" ou "4.5 estrelas Google Maps") - OBRIGATÓRIO
+- reviewCount: número aproximado de avaliações (ex: "1200+ avaliações") - OBRIGATÓRIO
+- whyRecommended: motivo ESPECÍFICO da recomendação (ex: "Famoso pelo pastrami desde 1888", "Reconhecido pelo NY Times 2023") - OBRIGATÓRIO
+- verificationUrl: link direto do Google Maps para verificar o local - OBRIGATÓRIO
+
+⚠️ Se NÃO encontrar dados verificáveis (rating, reviews) para um local, NÃO o inclua na lista.
+
+Retorne um array JSON válido com 6-10 sugestões DIFERENTES E VERIFICÁVEIS. Apenas JSON, sem texto adicional.`;
     } else {
       // Standard discovery
       prompt = `${contextualPrefix}
@@ -140,9 +159,20 @@ Liste as principais atrações, eventos, restaurantes e atividades turísticas e
   → Mencione sub-bairros/áreas específicas
   → Cubra diferentes partes da região
 
-Para cada item, forneça EXATAMENTE as informações em formato JSON (name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl).
+⭐ INFORMAÇÕES OBRIGATÓRIAS DE VERIFICAÇÃO:
+Para CADA local, você DEVE incluir dados verificáveis de fontes reais (Google Maps, Yelp, TripAdvisor, etc):
 
-Retorne um array JSON válido com 8-12 sugestões variadas. Apenas JSON, sem texto adicional.`;
+Para cada item, forneça EXATAMENTE as informações em formato JSON:
+- name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl
+- rating: avaliação média (ex: "4.5/5" ou "4.5 estrelas Google Maps") - OBRIGATÓRIO
+- reviewCount: número aproximado de avaliações (ex: "1200+ avaliações") - OBRIGATÓRIO  
+- whyRecommended: motivo ESPECÍFICO da recomendação (ex: "Famoso pelo pastrami desde 1888", "Reconhecido pelo NY Times 2023") - OBRIGATÓRIO
+- verificationUrl: link direto do Google Maps para verificar o local - OBRIGATÓRIO
+
+⚠️ IMPORTANTE: Se NÃO encontrar dados verificáveis (rating, reviews) para um local, NÃO o inclua na lista.
+⚠️ Priorize locais BEM ESTABELECIDOS com avaliações reais de usuários.
+
+Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apenas JSON, sem texto adicional.`;
     }
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -220,6 +250,10 @@ Retorne um array JSON válido com 8-12 sugestões variadas. Apenas JSON, sem tex
         neighborhood: attr.neighborhood || region,
         imageUrl: attr.imageUrl || null,
         infoUrl: attr.infoUrl || null,
+        rating: attr.rating || null,
+        reviewCount: attr.reviewCount || null,
+        whyRecommended: attr.whyRecommended || null,
+        verificationUrl: attr.verificationUrl || null,
       }));
 
       console.log(`✅ Found ${attractions.length} attractions`);

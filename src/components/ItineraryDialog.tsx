@@ -22,6 +22,10 @@ interface Attraction {
   neighborhood: string;
   imageUrl?: string;
   infoUrl?: string;
+  rating?: string;
+  reviewCount?: string;
+  whyRecommended?: string;
+  verificationUrl?: string;
 }
 
 interface OrganizedProgram {
@@ -594,28 +598,37 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-medium text-sm sm:text-base line-clamp-2">{attraction.name}</h4>
-                            {attraction.infoUrl && (
-                              <a 
-                                href={attraction.infoUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-primary hover:text-primary/80 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
+                            {attraction.rating && (
+                              <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                ⭐ {attraction.rating}
+                              </Badge>
                             )}
                           </div>
-                          <Badge variant="outline" className="mt-1 text-xs">
-                            {attraction.type}
-                          </Badge>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <Badge variant="outline" className="text-xs">
+                              {attraction.type}
+                            </Badge>
+                            {attraction.reviewCount && (
+                              <span className="text-xs text-muted-foreground">
+                                {attraction.reviewCount}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      
                       <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
                         {attraction.description}
                       </p>
+                      
+                      {attraction.whyRecommended && (
+                        <p className="text-xs text-primary/80 italic line-clamp-2">
+                          💡 {attraction.whyRecommended}
+                        </p>
+                      )}
+                      
                       <div className="flex flex-wrap gap-2 sm:gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3" />
@@ -625,6 +638,34 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
                           <Clock className="w-3 h-3" />
                           {attraction.hours}
                         </span>
+                      </div>
+                      
+                      {/* Links de verificação */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {attraction.verificationUrl && (
+                          <a 
+                            href={attraction.verificationUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1 min-h-[32px]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Verificar no Google Maps
+                          </a>
+                        )}
+                        {attraction.infoUrl && attraction.infoUrl !== attraction.verificationUrl && (
+                          <a 
+                            href={attraction.infoUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1 min-h-[32px]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Site oficial
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
