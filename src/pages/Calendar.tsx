@@ -7,9 +7,10 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare, FileDown } from "lucide-react";
 import { generateDayPDF } from "@/utils/generateDayPDF";
-import { Program } from "@/types";
+import { Program, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
+import { useCallback } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,6 +101,7 @@ const Calendar = () => {
 
   useEffect(() => {
     void loadPrograms();
+    loadPrograms();
   }, [loadPrograms]);
 
   const handleLogout = async () => {
@@ -142,6 +144,11 @@ const Calendar = () => {
         description:
           error instanceof Error ? error.message : "Tente novamente",
         variant: "destructive",
+      console.error('Erro ao gerar PDF:', error);
+      toast({
+        title: "Erro ao gerar PDF",
+        description: getErrorMessage(error) || "Tente novamente",
+        variant: "destructive"
       });
     } finally {
       setGeneratingPDF(false);

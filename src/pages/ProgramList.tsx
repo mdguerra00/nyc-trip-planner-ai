@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +8,11 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Program } from "@/types";
+import { Program, getErrorMessage } from "@/types";
 import { generateDayPDF } from "@/utils/generateDayPDF";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/components/ui/badge";
+import { useCallback } from "react";
 import { listPrograms } from "@/services/api";
 
 const ProgramList = () => {
@@ -36,6 +38,11 @@ const ProgramList = () => {
 
   useEffect(() => {
     void loadPrograms();
+    setPrograms((data as Program[]) || []);
+  }, [toast]);
+
+  useEffect(() => {
+    loadPrograms();
   }, [loadPrograms]);
 
   // Agrupar programas por data
@@ -74,6 +81,11 @@ const ProgramList = () => {
         description:
           error instanceof Error ? error.message : "Tente novamente",
         variant: "destructive",
+      console.error('Erro ao gerar PDF:', error);
+      toast({
+        title: "Erro ao gerar PDF",
+        description: getErrorMessage(error) || "Tente novamente",
+        variant: "destructive"
       });
     } finally {
       setGeneratingPDF(null);

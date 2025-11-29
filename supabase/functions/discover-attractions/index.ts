@@ -1,12 +1,10 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
+import { corsHeaders, createSupabaseClient } from "../_shared/auth.ts";
+import { DiscoverAttractionsRequestSchema } from "../_shared/schemas.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,24 +12,23 @@ serve(async (req) => {
   }
 
   try {
-    const { region, date, userSuggestion, requestMore, userId } = await req.json();
-
-    if (!region || !date) {
+    const parsedBody = DiscoverAttractionsRequestSchema.safeParse(await req.json());
+    if (!parsedBody.success) {
       return new Response(
-        JSON.stringify({ error: 'Region and date are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Invalid request payload", details: parsedBody.error.format() }),
+        { status: 400, headers: jsonHeaders }
       );
     }
 
+    const { region, date, userSuggestion, requestMore, userId } = parsedBody.data;
+
     const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
     if (!perplexityApiKey) {
       console.error('PERPLEXITY_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: jsonHeaders }
       );
     }
 
@@ -39,11 +36,12 @@ serve(async (req) => {
 
     // Build travel context if userId is provided
     let contextualPrefix = "";
-    if (userId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    if (userId) {
+      const { supabaseUrl, supabaseKey } = createSupabaseClient();
       const travelContext = await buildTravelContext(
         userId,
-        SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY,
+        supabaseUrl,
+        supabaseKey,
         date,
         region
       );
@@ -203,7 +201,7 @@ Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apen
       console.error('Perplexity API error:', response.status, errorText);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch attractions from Perplexity' }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: response.status, headers: jsonHeaders }
       );
     }
 
@@ -214,7 +212,7 @@ Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apen
       console.error('No content in Perplexity response');
       return new Response(
         JSON.stringify({ error: 'No content received from AI' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: jsonHeaders }
       );
     }
 
@@ -263,24 +261,24 @@ Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apen
       console.error('Raw content:', content);
       
       return new Response(
-        JSON.stringify({ 
-          error: 'Failed to parse AI response', 
-          rawContent: content.substring(0, 500) 
+        JSON.stringify({
+          error: 'Failed to parse AI response',
+          rawContent: content.substring(0, 500)
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: jsonHeaders }
       );
     }
 
     return new Response(
       JSON.stringify({ attractions }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: jsonHeaders }
     );
 
   } catch (error) {
     console.error('Error in discover-attractions:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: jsonHeaders }
     );
   }
 });

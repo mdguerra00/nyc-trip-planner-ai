@@ -6,7 +6,8 @@ import { Send, Trash2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Message, Program } from "@/types";
+import { Message, Program, getErrorMessage } from "@/types";
+import { buildProgramChatContext, sendChatMessage } from "@/services/llm";
 
 interface AiChatProps {
   program: Program;
@@ -62,45 +63,32 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     try {
-      const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: {
-          message: userMessage,
-          programId: program.id,
-          programData: {
-            title: program.title,
-            description: program.description || "",
-            address: program.address || "",
-            date: program.date,
-            start_time: program.start_time || "",
-            end_time: program.end_time || "",
-            aiSuggestions: aiSuggestions || "",
-          },
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
+      const assistantMessage = await sendChatMessage(
+        program.id,
+        buildProgramChatContext(program, aiSuggestions),
+        userMessage
+      );
 
       // Add assistant message to UI
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.message },
+        { role: "assistant", content: assistantMessage },
       ]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao enviar mensagem:", error);
       
       // Remove user message on error
       setMessages((prev) => prev.slice(0, -1));
       
+      const errorMessage = getErrorMessage(error);
       let errorTitle = "Erro ao enviar mensagem";
-      let errorDescription = error.message || "Tente novamente mais tarde";
+      let errorDescription = errorMessage || "Tente novamente mais tarde";
       
       // Handle specific error codes
-      if (error.message?.includes("429") || error.message?.toLowerCase().includes("rate limit")) {
+      if (errorMessage.includes("429") || errorMessage.toLowerCase().includes("rate limit")) {
         errorTitle = "Limite de requisições atingido";
         errorDescription = "Você está fazendo muitas perguntas. Por favor, aguarde um momento antes de tentar novamente.";
-      } else if (error.message?.includes("402") || error.message?.toLowerCase().includes("insufficient credits")) {
+      } else if (errorMessage.includes("402") || errorMessage.toLowerCase().includes("insufficient credits")) {
         errorTitle = "Créditos insuficientes";
         errorDescription = "Os créditos de IA foram esgotados. Entre em contato com o suporte.";
       }
