@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ProgramDialog } from "@/components/ProgramDialog";
 import AiChat from "@/components/AiChat";
-import { Program, FaqItem } from "@/types";
+import { Program, FaqItem, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
+import { useCallback } from "react";
+import { Json } from "@/integrations/supabase/types";
 import {
   deleteProgram as deleteProgramApi,
   getProgramDetail,
@@ -43,13 +45,7 @@ const ProgramDetail = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (id) {
-      loadProgram();
-    }
-  }, [id]);
-
-  const loadProgram = async () => {
+  const loadProgram = useCallback(async () => {
     if (!id) return;
 
     const { data, error } = await getProgramDetail(id);
@@ -72,7 +68,13 @@ const ProgramDetail = () => {
         setAiFaq(data.ai_faq as Array<{ question: string; answer: string }>);
       }
     }
-  };
+  }, [id, navigate, toast]);
+
+  useEffect(() => {
+    if (id) {
+      loadProgram();
+    }
+  }, [id, loadProgram]);
 
   const saveNotes = async () => {
     if (!program) return;
@@ -124,7 +126,7 @@ const ProgramDetail = () => {
 
       const { data: updatedProgram, error: updateError } = await updateProgram(program.id, {
         ai_suggestions: suggestions,
-        ai_faq: faq,
+        ai_faq: faq as unknown as Json,
       });
 
       if (updateError) throw new Error(updateError.message);
@@ -134,10 +136,10 @@ const ProgramDetail = () => {
       }
 
       toast({ title: "Informações geradas com sucesso!" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao buscar sugestões",
-        description: error.message,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -166,17 +168,17 @@ const ProgramDetail = () => {
       updatedFaq[index].loadingDetails = false;
       setAiFaq(updatedFaq);
 
-      const { error: updateError } = await updateProgram(program.id, { ai_faq: updatedFaq as any });
+      const { error: updateError } = await updateProgram(program.id, { ai_faq: updatedFaq as unknown as Json });
 
       if (updateError) {
         console.error("Erro ao salvar detalhes:", updateError);
       } else {
-        setProgram({ ...program, ai_faq: updatedFaq as any });
+        setProgram({ ...program, ai_faq: updatedFaq as unknown as Json });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao explorar tópico",
-        description: error.message,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
       updatedFaq[index].loadingDetails = false;

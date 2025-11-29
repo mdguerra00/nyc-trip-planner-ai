@@ -7,9 +7,10 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare, FileDown } from "lucide-react";
 import { generateDayPDF } from "@/utils/generateDayPDF";
-import { Program } from "@/types";
+import { Program, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
+import { useCallback } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,11 +50,7 @@ const Calendar = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadPrograms();
-  }, []);
-
-  const loadPrograms = async () => {
+  const loadPrograms = useCallback(async () => {
     const { data, error } = await listPrograms();
 
     if (error) {
@@ -100,7 +97,11 @@ const Calendar = () => {
       setPrograms([]);
       setEvents([]);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadPrograms();
+  }, [loadPrograms]);
 
   const handleLogout = async () => {
     await signOut();
@@ -135,11 +136,11 @@ const Calendar = () => {
         title: "PDF gerado com sucesso!",
         description: "O arquivo foi baixado automaticamente",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao gerar PDF:', error);
       toast({
         title: "Erro ao gerar PDF",
-        description: error.message || "Tente novamente",
+        description: getErrorMessage(error) || "Tente novamente",
         variant: "destructive"
       });
     } finally {

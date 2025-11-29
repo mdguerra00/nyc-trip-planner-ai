@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Program } from "@/types";
+import { Program, getErrorMessage } from "@/types";
 
 interface ProgramDialogProps {
   open: boolean;
@@ -109,10 +109,10 @@ export const ProgramDialog = ({
       }
 
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro",
-        description: error.message,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
