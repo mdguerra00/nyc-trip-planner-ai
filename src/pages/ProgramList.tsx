@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +11,7 @@ import { Program } from "@/types";
 import { generateDayPDF } from "@/utils/generateDayPDF";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/components/ui/badge";
+import { listPrograms } from "@/services/api";
 
 const ProgramList = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -25,20 +25,18 @@ const ProgramList = () => {
   }, []);
 
   const loadPrograms = async () => {
-    const { data, error } = await supabase
-      .from("programs")
-      .select("*")
-      .order("date", { ascending: true })
-      .order("start_time", { ascending: true });
+    const { data, error } = await listPrograms();
 
     if (error) {
-      toast({ title: "Erro ao carregar programas", variant: "destructive" });
+      toast({
+        title: "Erro ao carregar programas",
+        description: error.message,
+        variant: "destructive",
+      });
       return;
     }
 
-    if (data) {
-      setPrograms(data as Program[]);
-    }
+    setPrograms((data as Program[]) || []);
   };
 
   // Agrupar programas por data

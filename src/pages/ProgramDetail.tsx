@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useSwipeable } from 'react-swipeable';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +23,12 @@ import { ProgramDialog } from "@/components/ProgramDialog";
 import AiChat from "@/components/AiChat";
 import { Program, FaqItem } from "@/types";
 import { useUser } from "@/hooks/useUser";
+import {
+  deleteProgram as deleteProgramApi,
+  getProgramDetail,
+  invokeFunction,
+  updateProgram,
+} from "@/services/api";
 
 const ProgramDetail = () => {
   const { id } = useParams();
@@ -45,14 +50,16 @@ const ProgramDetail = () => {
   }, [id]);
 
   const loadProgram = async () => {
-    const { data, error } = await supabase
-      .from("programs")
-      .select("*")
-      .eq("id", id)
-      .single();
+    if (!id) return;
+
+    const { data, error } = await getProgramDetail(id);
 
     if (error) {
-      toast({ title: "Erro ao carregar programa", variant: "destructive" });
+      toast({
+        title: "Erro ao carregar programa",
+        description: error.message,
+        variant: "destructive",
+      });
       navigate("/");
       return;
     }
@@ -70,13 +77,14 @@ const ProgramDetail = () => {
   const saveNotes = async () => {
     if (!program) return;
 
-    const { error } = await supabase
-      .from("programs")
-      .update({ notes })
-      .eq("id", program.id);
+    const { error } = await updateProgram(program.id, { notes });
 
     if (error) {
-      toast({ title: "Erro ao salvar notas", variant: "destructive" });
+      toast({
+        title: "Erro ao salvar notas",
+        description: error.message,
+        variant: "destructive",
+      });
     } else {
       toast({ title: "Notas salvas com sucesso!" });
     }
@@ -87,47 +95,42 @@ const ProgramDetail = () => {
 
     setLoadingAi(true);
     try {
-      // Get AI suggestions
-      const { data, error } = await supabase.functions.invoke("ai-suggestions", {
-        body: { 
+      const { data, error } = await invokeFunction<{ suggestions: string }>(
+        "ai-suggestions",
+        {
           program,
           userId: userId,
-        },
-      });
-
-      if (error) throw error;
-
-      const suggestions = data.suggestions;
-      setAiSuggestions(suggestions);
-
-      // Generate FAQ based on suggestions
-      const { data: faqData, error: faqError } = await supabase.functions.invoke(
-        "generate-faq",
-        {
-          body: { 
-            suggestions,
-            userId: userId,
-            programDate: program.date
-          },
         }
       );
 
-      if (faqError) throw faqError;
+      if (error) throw new Error(error.message);
 
-      const faq = faqData.faq;
+      const suggestions = data?.suggestions || "";
+      setAiSuggestions(suggestions);
+
+      const { data: faqData, error: faqError } = await invokeFunction<{ faq: FaqItem[] }>(
+        "generate-faq",
+        {
+          suggestions,
+          userId: userId,
+          programDate: program.date,
+        }
+      );
+
+      if (faqError) throw new Error(faqError.message);
+
+      const faq = faqData?.faq || [];
       setAiFaq(faq);
 
-      // Save to database
-      const { error: updateError } = await supabase
-        .from("programs")
-        .update({ 
-          ai_suggestions: suggestions,
-          ai_faq: faq
-        })
-        .eq("id", program.id);
+      const { data: updatedProgram, error: updateError } = await updateProgram(program.id, {
+        ai_suggestions: suggestions,
+        ai_faq: faq,
+      });
 
-      if (updateError) {
-        console.error("Erro ao salvar sugestões:", updateError);
+      if (updateError) throw new Error(updateError.message);
+
+      if (updatedProgram) {
+        setProgram(updatedProgram);
       }
 
       toast({ title: "Informações geradas com sucesso!" });
@@ -150,29 +153,25 @@ const ProgramDetail = () => {
     setAiFaq(updatedFaq);
 
     try {
-      const { data, error } = await supabase.functions.invoke("explore-topic", {
-        body: {
-          topic: `${question}\n${answer}`,
-          context: aiSuggestions,
-          userId: userId,
-          programDate: program.date,
-        },
+      const { data, error } = await invokeFunction<{ details: string }>("explore-topic", {
+        topic: `${question}\n${answer}`,
+        context: aiSuggestions,
+        userId: userId,
+        programDate: program.date,
       });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
-      updatedFaq[index].details = data.details;
+      updatedFaq[index].details = data?.details;
       updatedFaq[index].loadingDetails = false;
       setAiFaq(updatedFaq);
 
-      // Save updated FAQ to database
-      const { error: updateError } = await supabase
-        .from("programs")
-        .update({ ai_faq: updatedFaq as any })
-        .eq("id", program.id);
+      const { error: updateError } = await updateProgram(program.id, { ai_faq: updatedFaq as any });
 
       if (updateError) {
         console.error("Erro ao salvar detalhes:", updateError);
+      } else {
+        setProgram({ ...program, ai_faq: updatedFaq as any });
       }
     } catch (error: any) {
       toast({
@@ -189,11 +188,8 @@ const ProgramDetail = () => {
     if (!program) return;
 
     console.log("Deletando programa:", program.id);
-    
-    const { error } = await supabase
-      .from("programs")
-      .delete()
-      .eq("id", program.id);
+
+    const { error } = await deleteProgramApi(program.id);
 
     if (error) {
       console.error("Erro ao deletar:", error);
