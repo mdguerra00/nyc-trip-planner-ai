@@ -36,6 +36,87 @@ function summarizeMessages(messages: ChatMessage[], maxCount: number): ChatMessa
   return messages.slice(-maxCount);
 }
 
+// Função para remover emojis e caracteres especiais não-ASCII
+function removeEmojis(text: string): string {
+  if (!text) return '';
+  
+  return text
+    // Remove emojis Unicode (ranges completos)
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Símbolos & Pictogramas
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transporte & Mapas
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Bandeiras
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Símbolos diversos
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation Selectors
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols
+    .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess Symbols
+    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols Extended-A
+    .replace(/[\u{231A}-\u{231B}]/gu, '')   // Watch, Hourglass
+    .replace(/[\u{23E9}-\u{23F3}]/gu, '')   // Botões de mídia
+    .replace(/[\u{23F8}-\u{23FA}]/gu, '')   // Mais botões
+    .replace(/[\u{25AA}-\u{25AB}]/gu, '')   // Quadrados
+    .replace(/[\u{25B6}]/gu, '')            // Play
+    .replace(/[\u{25C0}]/gu, '')            // Reverse
+    .replace(/[\u{25FB}-\u{25FE}]/gu, '')   // Mais quadrados
+    .replace(/[\u{2614}-\u{2615}]/gu, '')   // Guarda-chuva, café
+    .replace(/[\u{2648}-\u{2653}]/gu, '')   // Signos
+    .replace(/[\u{267F}]/gu, '')            // Acessibilidade
+    .replace(/[\u{2693}]/gu, '')            // Âncora
+    .replace(/[\u{26A1}]/gu, '')            // Raio
+    .replace(/[\u{26AA}-\u{26AB}]/gu, '')   // Círculos
+    .replace(/[\u{26BD}-\u{26BE}]/gu, '')   // Bolas esportivas
+    .replace(/[\u{26C4}-\u{26C5}]/gu, '')   // Boneco de neve, sol
+    .replace(/[\u{26CE}]/gu, '')            // Ophiuchus
+    .replace(/[\u{26D4}]/gu, '')            // Proibido
+    .replace(/[\u{26EA}]/gu, '')            // Igreja
+    .replace(/[\u{26F2}-\u{26F3}]/gu, '')   // Fonte, golfe
+    .replace(/[\u{26F5}]/gu, '')            // Barco
+    .replace(/[\u{26FA}]/gu, '')            // Tenda
+    .replace(/[\u{26FD}]/gu, '')            // Posto
+    .replace(/[\u{2702}]/gu, '')            // Tesoura
+    .replace(/[\u{2705}]/gu, '')            // Check verde
+    .replace(/[\u{2708}-\u{270D}]/gu, '')   // Avião, etc
+    .replace(/[\u{270F}]/gu, '')            // Lápis
+    .replace(/[\u{2712}]/gu, '')            // Caneta
+    .replace(/[\u{2714}]/gu, '')            // Check
+    .replace(/[\u{2716}]/gu, '')            // X
+    .replace(/[\u{271D}]/gu, '')            // Cruz
+    .replace(/[\u{2721}]/gu, '')            // Estrela de Davi
+    .replace(/[\u{2728}]/gu, '')            // Sparkles
+    .replace(/[\u{2733}-\u{2734}]/gu, '')   // Asteriscos
+    .replace(/[\u{2744}]/gu, '')            // Floco de neve
+    .replace(/[\u{2747}]/gu, '')            // Sparkle
+    .replace(/[\u{274C}]/gu, '')            // X vermelho
+    .replace(/[\u{274E}]/gu, '')            // X verde
+    .replace(/[\u{2753}-\u{2755}]/gu, '')   // Interrogações
+    .replace(/[\u{2757}]/gu, '')            // Exclamação
+    .replace(/[\u{2763}-\u{2764}]/gu, '')   // Coração
+    .replace(/[\u{2795}-\u{2797}]/gu, '')   // Operações matemáticas
+    .replace(/[\u{27A1}]/gu, '')            // Seta direita
+    .replace(/[\u{27B0}]/gu, '')            // Loop
+    .replace(/[\u{27BF}]/gu, '')            // Loop duplo
+    .replace(/[\u{2934}-\u{2935}]/gu, '')   // Setas
+    .replace(/[\u{2B05}-\u{2B07}]/gu, '')   // Setas
+    .replace(/[\u{2B1B}-\u{2B1C}]/gu, '')   // Quadrados
+    .replace(/[\u{2B50}]/gu, '*')           // Estrela -> asterisco
+    .replace(/[\u{2B55}]/gu, 'o')           // Círculo -> o
+    .replace(/[\u{3030}]/gu, '~')           // Wavy dash
+    .replace(/[\u{303D}]/gu, '')            // Part alternation mark
+    .replace(/[\u{3297}]/gu, '')            // Circled Ideograph
+    .replace(/[\u{3299}]/gu, '')            // Circled Ideograph Secret
+    // Substituições úteis
+    .replace(/→/g, '->')
+    .replace(/←/g, '<-')
+    .replace(/★/g, '*')
+    .replace(/•/g, '-')
+    .replace(/·/g, '-')
+    .replace(/…/g, '...')
+    // Limpar espaços duplos que podem sobrar
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Função para adicionar cabeçalho estilizado
 function addStyledHeader(doc: jsPDF, text: string, yPos: number, pageWidth: number): number {
   // Fundo colorido para o cabeçalho
@@ -133,7 +214,7 @@ export async function generateDayPDF(date: string, userId: string) {
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(41, 98, 155);
-      const programTitle = `${i + 1}. ${program.title}`;
+      const programTitle = `${i + 1}. ${removeEmojis(program.title)}`;
       const titleLines = doc.splitTextToSize(programTitle, contentWidth);
       doc.text(titleLines, margin, yPosition);
       yPosition += titleLines.length * 6 + 2;
@@ -156,7 +237,7 @@ export async function generateDayPDF(date: string, userId: string) {
 
       // Endereço
       if (program.address) {
-        const addressLines = doc.splitTextToSize(`Local: ${program.address}`, contentWidth);
+        const addressLines = doc.splitTextToSize(`Local: ${removeEmojis(program.address)}`, contentWidth);
         doc.text(addressLines, margin, yPosition);
         yPosition += addressLines.length * 4.5 + 3;
       } else {
@@ -168,7 +249,7 @@ export async function generateDayPDF(date: string, userId: string) {
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(0, 0, 0);
-        const descLines = doc.splitTextToSize(program.description, contentWidth);
+        const descLines = doc.splitTextToSize(removeEmojis(program.description), contentWidth);
         doc.text(descLines, margin, yPosition);
         yPosition += descLines.length * 4.5 + 5;
       }
@@ -183,7 +264,7 @@ export async function generateDayPDF(date: string, userId: string) {
         doc.setFontSize(9);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(100, 80, 60);
-        const notesLines = doc.splitTextToSize(program.notes, contentWidth - 6);
+        const notesLines = doc.splitTextToSize(removeEmojis(program.notes), contentWidth - 6);
         doc.text(notesLines, margin + 3, yPosition);
         yPosition += notesLines.length * 4 + 5;
       }
@@ -201,7 +282,8 @@ export async function generateDayPDF(date: string, userId: string) {
         doc.setTextColor(0, 0, 0);
         
         // Condensar sugestões para 70% do tamanho original
-        const condensedSuggestions = truncateText(program.ai_suggestions, Math.floor(program.ai_suggestions.length * 0.7));
+        const cleanedSuggestions = removeEmojis(program.ai_suggestions);
+        const condensedSuggestions = truncateText(cleanedSuggestions, Math.floor(cleanedSuggestions.length * 0.7));
         const aiLines = doc.splitTextToSize(condensedSuggestions, contentWidth - 6);
         doc.text(aiLines, margin + 3, yPosition);
         yPosition += aiLines.length * 4 + 5;
@@ -227,14 +309,14 @@ export async function generateDayPDF(date: string, userId: string) {
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8);
           doc.setTextColor(0, 0, 0);
-          const question = truncateText(faq.question, 120);
+          const question = truncateText(removeEmojis(faq.question), 120);
           const questionLines = doc.splitTextToSize(`P: ${question}`, contentWidth - 9);
           doc.text(questionLines, margin + 6, yPosition);
           yPosition += questionLines.length * 3.5 + 1;
 
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(60, 60, 60);
-          const answer = truncateText(faq.answer, 200);
+          const answer = truncateText(removeEmojis(faq.answer), 200);
           const answerLines = doc.splitTextToSize(`R: ${answer}`, contentWidth - 9);
           doc.text(answerLines, margin + 6, yPosition);
           yPosition += answerLines.length * 3.5 + 3;
@@ -266,7 +348,7 @@ export async function generateDayPDF(date: string, userId: string) {
           
           const prefix = isUser ? '[Voce] ' : '[IA] ';
           const maxLength = isUser ? 100 : 200;
-          const condensedContent = truncateText(msg.content, maxLength);
+          const condensedContent = truncateText(removeEmojis(msg.content), maxLength);
           const msgLines = doc.splitTextToSize(prefix + condensedContent, contentWidth - 9);
           doc.text(msgLines, margin + 6, yPosition);
           yPosition += msgLines.length * 3.5 + 2;
@@ -318,7 +400,7 @@ export async function generateDayPDF(date: string, userId: string) {
         
         const prefix = isUser ? '[Voce] ' : '[IA] ';
         const maxLength = isUser ? 100 : 200;
-        const condensedContent = truncateText(msg.content, maxLength);
+        const condensedContent = truncateText(removeEmojis(msg.content), maxLength);
         const msgLines = doc.splitTextToSize(prefix + condensedContent, contentWidth - 6);
         doc.text(msgLines, margin + 3, yPosition);
         yPosition += msgLines.length * 3.5 + 2;
