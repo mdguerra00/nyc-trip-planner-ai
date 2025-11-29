@@ -1,46 +1,31 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { AiChatRequestSchema } from "../_shared/schemas.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
+import { corsHeaders, withAuth } from "../_shared/auth.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
   try {
-    const { message, programId, programData } = await req.json();
+    const parsedBody = AiChatRequestSchema.safeParse(await req.json());
+    if (!parsedBody.success) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request payload", details: parsedBody.error.format() }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    const { message, programId, programData } = parsedBody.data;
     const isGlobalChat = !programId;
-
-    // Get user from JWT token
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization header required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const userId = user.id;
+
+    if (!isGlobalChat && !programData) {
+      return new Response(
+        JSON.stringify({ error: "programData is required when programId is provided" }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
 
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -283,13 +268,13 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
         if (error.message === 'RATE_LIMIT') {
           return new Response(
             JSON.stringify({ error: 'Muitas requisições. Por favor, tente novamente em alguns instantes.' }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 429, headers: jsonHeaders }
           );
         }
         if (error.message === 'PAYMENT_REQUIRED') {
           return new Response(
             JSON.stringify({ error: 'Limite de créditos atingido. Por favor, adicione créditos ao seu workspace.' }),
-            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 402, headers: jsonHeaders }
           );
         }
       }
@@ -335,14 +320,14 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
 
     return new Response(
       JSON.stringify({ message: assistantMessage }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: jsonHeaders }
     );
 
   } catch (error) {
     console.error('Error in ai-chat function:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: jsonHeaders }
     );
   }
-});
+}));

@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Program } from "@/types";
+import { Program, getErrorMessage } from "@/types";
 import { generateDayPDF } from "@/utils/generateDayPDF";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,8 @@ const ProgramList = () => {
       setPrograms([]);
       return;
     }
+    setPrograms((data as Program[]) || []);
+  }, [toast]);
 
     setPrograms(data);
   }, [toast]);

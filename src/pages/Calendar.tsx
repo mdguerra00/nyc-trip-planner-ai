@@ -7,9 +7,10 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare, FileDown } from "lucide-react";
 import { generateDayPDF } from "@/utils/generateDayPDF";
-import { Program } from "@/types";
+import { Program, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
+import { useCallback } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,

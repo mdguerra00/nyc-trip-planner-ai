@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,32 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Sparkles, Search, Brain, MapPin, Clock, Calendar, ExternalLink } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
-
-interface Attraction {
-  id: string;
-  name: string;
-  type: string;
-  address: string;
-  hours: string;
-  description: string;
-  estimatedDuration: number;
-  neighborhood: string;
-  imageUrl?: string;
-  infoUrl?: string;
-  rating?: string;
-  reviewCount?: string;
-  whyRecommended?: string;
-  verificationUrl?: string;
-}
-
-interface OrganizedProgram {
-  title: string;
-  description: string;
-  start_time: string;
-  end_time: string;
-  address: string;
-  notes: string;
-}
+import { discoverAttractions, organizeItinerary } from "@/services/places";
+import { Attraction, OptimizationMetadata, OrganizedItinerary, OrganizedProgram } from "@/types/places";
 
 interface ItineraryDialogProps {
   open: boolean;
@@ -47,27 +23,32 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
   const { toast } = useToast();
   const { userId } = useUser();
   const [step, setStep] = useState(1);
-  
+
   // Step 1: Configuration
   const [region, setRegion] = useState("");
   const [date, setDate] = useState("");
   const [dateTimestamp, setDateTimestamp] = useState<number | null>(null);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("22:00");
-  
+
   // Step 2: Attractions
   const [attractions, setAttractions] = useState<Attraction[]>([]);
   const [selectedAttractions, setSelectedAttractions] = useState<string[]>([]);
   const [loadingAttractions, setLoadingAttractions] = useState(false);
   const [userSuggestion, setUserSuggestion] = useState("");
-  
+
   // Step 3: Organization
   const [organizedPrograms, setOrganizedPrograms] = useState<OrganizedProgram[]>([]);
-  const [itinerarySummary, setItinerarySummary] = useState("");
+  const [organizedItinerary, setOrganizedItinerary] = useState<OrganizedItinerary | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [optimizationApplied, setOptimizationApplied] = useState<any>(null);
+  const [optimizationApplied, setOptimizationApplied] = useState<OptimizationMetadata | null>(null);
+
+  const hasConfiguration = useMemo(() => Boolean(region && date), [region, date]);
+
+  const getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : "Tente novamente";
 
   const resetDialog = () => {
     setStep(1);
@@ -78,12 +59,12 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
     setAttractions([]);
     setSelectedAttractions([]);
     setOrganizedPrograms([]);
-    setItinerarySummary("");
+    setOrganizedItinerary(null);
     setWarnings([]);
   };
 
   const handleDiscoverAttractions = async (appendMode = false) => {
-    if (!region || !date) {
+    if (!hasConfiguration) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha região e data",
@@ -92,11 +73,10 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       return;
     }
 
-    // Validate date is not in the past
     const selectedDate = new Date(date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (selectedDate < today) {
       toast({
         title: "Data inválida",
@@ -106,46 +86,32 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       return;
     }
 
-    console.log('🔍 DEBUG - Discovering attractions:', { region, date, dateTimestamp, appendMode });
-
     setLoadingAttractions(true);
     try {
-      const { data, error } = await supabase.functions.invoke('discover-attractions', {
-        body: { 
-          region, 
-          date, 
-          requestMore: appendMode,
-          userId: userId,
-        }
+      const { attractions: discovered } = await discoverAttractions({
+        region,
+        date,
+        requestMore: appendMode,
+        userId,
       });
 
-      if (error) throw error;
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      const newAttractions = data.attractions || [];
-      
       if (appendMode) {
-        // Add to existing attractions
-        setAttractions(prev => [...prev, ...newAttractions]);
+        setAttractions((prev) => [...prev, ...discovered]);
       } else {
-        // Replace attractions
-        setAttractions(newAttractions);
+        setAttractions(discovered);
+        setSelectedAttractions([]);
         setStep(2);
       }
-      
+
       toast({
         title: appendMode ? "✨ Mais sugestões encontradas!" : "🔍 Atrações descobertas!",
-        description: `${newAttractions.length} ${appendMode ? 'novas' : ''} sugestões para ${region}`,
+        description: `${discovered.length} ${appendMode ? "novas" : ""} sugestões para ${region}`,
       });
-
-    } catch (error: any) {
-      console.error('Error discovering attractions:', error);
+    } catch (error) {
+      console.error("Error discovering attractions:", error);
       toast({
         title: "Erro ao buscar atrações",
-        description: error.message || "Tente novamente",
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -165,37 +131,27 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
 
     setLoadingAttractions(true);
     try {
-      const { data, error } = await supabase.functions.invoke('discover-attractions', {
-        body: { 
-          region, 
-          date, 
-          userSuggestion: userSuggestion.trim(),
-          userId: userId,
-        }
+      const trimmedSuggestion = userSuggestion.trim();
+      const { attractions: newAttractions } = await discoverAttractions({
+        region,
+        date,
+        userSuggestion: trimmedSuggestion,
+        userId,
       });
 
-      if (error) throw error;
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      const newAttractions = data.attractions || [];
-      
-      // Add to existing attractions
       setAttractions(prev => [...prev, ...newAttractions]);
       setUserSuggestion("");
-      
+
       toast({
         title: "✅ Sugestão adicionada!",
-        description: `${newAttractions.length} atração(ões) encontrada(s) para "${userSuggestion}"`,
+        description: `${newAttractions.length} atração(ões) encontrada(s) para "${trimmedSuggestion}"`,
       });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error adding user suggestion:', error);
       toast({
         title: "Erro ao adicionar sugestão",
-        description: error.message || "Tente novamente",
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -224,60 +180,42 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       return;
     }
 
-    console.log('🧠 DEBUG - Organizing itinerary:', { 
-      date, 
+    console.log('🧠 DEBUG - Organizing itinerary:', {
+      date,
       dateTimestamp,
       region,
-      selectedCount: selectedAttractions.length 
+      selectedCount: selectedAttractions.length
     });
 
     setLoadingOrganization(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      const selectedAttractionsData = attractions.filter(a => 
+      const selectedAttractionsData = attractions.filter(a =>
         selectedAttractions.includes(a.id)
       );
 
-      const { data, error } = await supabase.functions.invoke('organize-itinerary', {
-        body: {
-          selectedAttractions: selectedAttractionsData,
-          date,
-          startTime,
-          endTime,
-          region
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
+      const { itinerary } = await organizeItinerary({
+        selectedAttractions: selectedAttractionsData,
+        date,
+        startTime,
+        endTime,
+        region
       });
 
-      if (error) throw error;
-
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-
-      setOrganizedPrograms(data.itinerary?.programs || []);
-      setItinerarySummary(data.itinerary?.summary || "");
-      setWarnings(data.itinerary?.warnings || []);
-      setOptimizationApplied(data.itinerary?.optimizationApplied || null);
+      setOrganizedPrograms(itinerary.programs || []);
+      setOrganizedItinerary(itinerary);
+      setWarnings(itinerary.warnings || []);
+      setOptimizationApplied(itinerary.optimizationApplied || null);
       setStep(3);
-      
+
       toast({
         title: "🧠 Itinerário organizado!",
-        description: `${data.itinerary?.programs?.length || 0} programas criados com IA`,
+        description: `${itinerary.programs?.length || 0} programas criados com IA`,
       });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error organizing itinerary:', error);
-      
-      // Extrair mensagem de erro mais descritiva
-      let errorMessage = "Tente novamente";
-      if (error.message) {
-        errorMessage = error.message;
-      }
+
+      const errorMessage = getErrorMessage(error);
       
       toast({
         title: "Erro ao organizar itinerário",
@@ -372,11 +310,11 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
       onOpenChange(false);
       onSuccess();
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving programs:', error);
       toast({
         title: "Erro ao salvar programas",
-        description: error.message || "Tente novamente",
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -500,11 +438,11 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               </div>
             </div>
 
-            <Button 
-              onClick={() => handleDiscoverAttractions()}
-              disabled={loadingAttractions || !region || !date}
-              className="w-full"
-            >
+              <Button
+                onClick={() => handleDiscoverAttractions()}
+              disabled={loadingAttractions || !hasConfiguration}
+                className="w-full"
+              >
               {loadingAttractions ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -748,9 +686,15 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
               </Card>
             )}
 
-            {itinerarySummary && (
-              <Card className="p-4 bg-muted/50">
-                <p className="text-sm">{itinerarySummary}</p>
+            {organizedItinerary?.summary && (
+              <Card className="p-3 sm:p-4 bg-primary/5 border-primary/20">
+                <div className="flex items-start gap-3">
+                  <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-primary mt-1" />
+                  <div>
+                    <p className="text-xs sm:text-sm font-medium">Resumo do dia</p>
+                    <p className="text-sm">{organizedItinerary.summary}</p>
+                  </div>
+                </div>
               </Card>
             )}
 
@@ -786,9 +730,9 @@ export function ItineraryDialog({ open, onOpenChange, onSuccess }: ItineraryDial
                       {program.notes && (
                         <p className="italic">💡 {program.notes}</p>
                       )}
-                      {(program as any).transitToNext && (
+                      {program.transitToNext && (
                         <p className="text-primary font-medium flex items-center gap-1">
-                          🚇 {(program as any).transitToNext}
+                          🚇 {program.transitToNext}
                         </p>
                       )}
                     </div>
