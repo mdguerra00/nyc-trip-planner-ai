@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +11,6 @@ import { Program, getErrorMessage } from "@/types";
 import { generateDayPDF } from "@/utils/generateDayPDF";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/components/ui/badge";
-import { useCallback } from "react";
 import { listPrograms } from "@/services/api";
 
 const ProgramList = () => {
@@ -25,24 +23,23 @@ const ProgramList = () => {
   const loadPrograms = useCallback(async () => {
     const { data, error } = await listPrograms();
 
-    if (error) {
+    if (error || !data) {
       toast({
         title: "Erro ao carregar programas",
-        description: error.message,
+        description: error?.message || "Nenhum programa encontrado",
         variant: "destructive",
       });
+      setPrograms([]);
       return;
     }
     setPrograms((data as Program[]) || []);
   }, [toast]);
 
-  useEffect(() => {
-    void loadPrograms();
-    setPrograms((data as Program[]) || []);
+    setPrograms(data);
   }, [toast]);
 
   useEffect(() => {
-    loadPrograms();
+    void loadPrograms();
   }, [loadPrograms]);
 
   // Agrupar programas por data
@@ -81,11 +78,6 @@ const ProgramList = () => {
         description:
           error instanceof Error ? error.message : "Tente novamente",
         variant: "destructive",
-      console.error('Erro ao gerar PDF:', error);
-      toast({
-        title: "Erro ao gerar PDF",
-        description: getErrorMessage(error) || "Tente novamente",
-        variant: "destructive"
       });
     } finally {
       setGeneratingPDF(null);
