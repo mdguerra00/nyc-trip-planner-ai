@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Message, Program } from "@/types";
+import { buildProgramChatContext, sendChatMessage } from "@/services/llm";
 
 interface AiChatProps {
   program: Program;
@@ -62,30 +63,16 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     try {
-      const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: {
-          message: userMessage,
-          programId: program.id,
-          programData: {
-            title: program.title,
-            description: program.description || "",
-            address: program.address || "",
-            date: program.date,
-            start_time: program.start_time || "",
-            end_time: program.end_time || "",
-            aiSuggestions: aiSuggestions || "",
-          },
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
+      const assistantMessage = await sendChatMessage(
+        program.id,
+        buildProgramChatContext(program, aiSuggestions),
+        userMessage
+      );
 
       // Add assistant message to UI
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.message },
+        { role: "assistant", content: assistantMessage },
       ]);
     } catch (error: any) {
       console.error("Erro ao enviar mensagem:", error);

@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Message } from "@/types";
 import { useUser } from "@/hooks/useUser";
+import { sendChatMessage } from "@/services/llm";
 
 interface GlobalAiChatProps {
   onClose?: () => void;
@@ -64,21 +65,12 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     try {
-      const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: {
-          message: userMessage,
-          programId: null, // Indicates global chat mode
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
+      const assistantMessage = await sendChatMessage(null, undefined, userMessage);
 
       // Add assistant message to UI
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.message },
+        { role: "assistant", content: assistantMessage },
       ]);
     } catch (error: any) {
       console.error("Erro ao enviar mensagem:", error);
