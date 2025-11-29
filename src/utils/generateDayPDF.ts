@@ -15,62 +15,6 @@ interface Program {
   ai_faq: any;
 }
 
-interface ChatMessage {
-  role: string;
-  content: string;
-  created_at: string;
-  program_id?: string;
-}
-
-// Função para truncar texto
-function truncateText(text: string, maxLength: number): string {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
-}
-
-// Função para extrair locais e atrações mencionados nas conversas de IA
-function extractMentionedPlaces(messages: ChatMessage[]): string[] {
-  const places = new Set<string>();
-  
-  // Processar apenas mensagens da IA
-  const aiMessages = messages.filter(m => m.role === 'assistant');
-  
-  for (const msg of aiMessages) {
-    const content = removeEmojis(msg.content);
-    
-    // Padrões para encontrar locais e atrações
-    // 1. Palavras com maiúsculas seguidas (nomes próprios)
-    const properNouns = content.match(/\b[A-Z][a-zà-ú]+(?:\s+[A-Z][a-zà-ú]+)+\b/g) || [];
-    
-    // 2. Padrões específicos como "restaurante X", "museu Y", etc.
-    const patterns = [
-      /(?:restaurante|bar|café|cafeteria|lanchonete)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
-      /(?:museu|galeria|teatro|cinema|parque)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
-      /(?:loja|shopping|mercado|centro)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
-      /(?:em|no|na|para|visite|vá até|confira)\s+([A-Z][a-zà-ú\s]+?)(?:\s+[-,.|:]|$)/gi,
-    ];
-    
-    for (const pattern of patterns) {
-      const matches = content.matchAll(pattern);
-      for (const match of matches) {
-        if (match[1] && match[1].length > 3 && match[1].length < 50) {
-          places.add(match[1].trim());
-        }
-      }
-    }
-    
-    // Adicionar nomes próprios que parecem ser lugares (mais de 2 palavras)
-    for (const noun of properNouns) {
-      const words = noun.split(/\s+/);
-      if (words.length >= 2 && words.length <= 5 && noun.length < 60) {
-        places.add(noun);
-      }
-    }
-  }
-  
-  return Array.from(places).sort();
-}
 
 // Função para remover emojis e caracteres especiais não-ASCII
 function removeEmojis(text: string): string {
@@ -192,16 +136,6 @@ export async function generateDayPDF(date: string, userId: string) {
       throw new Error('Nenhum programa encontrado para esta data');
     }
 
-    // Buscar mensagens de chat dos programas
-    const programIds = programs.map(p => p.id);
-    const { data: programChats, error: chatsError } = await supabase
-      .from('program_chat_messages')
-      .select('role, content, created_at, program_id')
-      .eq('user_id', userId)
-      .in('program_id', programIds)
-      .order('created_at', { ascending: true });
-
-    if (chatsError) throw chatsError;
 
     // Criar o PDF com margens consistentes
     const doc = new jsPDF();
@@ -296,25 +230,6 @@ export async function generateDayPDF(date: string, userId: string) {
         yPosition += notesLines.length * 4 + 5;
       }
 
-      // Sugestões da IA (condensadas)
-      if (program.ai_suggestions) {
-        if (yPosition > pageHeight - 50) {
-          doc.addPage();
-          yPosition = margin + 5;
-        }
-        yPosition = addStyledHeader(doc, '> DICAS DA IA', yPosition, pageWidth);
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-        
-        // Condensar sugestões para 70% do tamanho original
-        const cleanedSuggestions = removeEmojis(program.ai_suggestions);
-        const condensedSuggestions = truncateText(cleanedSuggestions, Math.floor(cleanedSuggestions.length * 0.7));
-        const aiLines = doc.splitTextToSize(condensedSuggestions, contentWidth - 6);
-        doc.text(aiLines, margin + 3, yPosition);
-        yPosition += aiLines.length * 4 + 5;
-      }
 
       // FAQ da IA (completas, sem truncamento)
       if (program.ai_faq && Array.isArray(program.ai_faq) && program.ai_faq.length > 0) {
@@ -348,32 +263,6 @@ export async function generateDayPDF(date: string, userId: string) {
         yPosition += 2;
       }
 
-      // Locais e atrações mencionados nas conversas de IA
-      const programChatMessages = programChats?.filter(m => m.program_id === program.id) || [];
-      const mentionedPlaces = extractMentionedPlaces(programChatMessages);
-      
-      if (mentionedPlaces.length > 0) {
-        if (yPosition > pageHeight - 50) {
-          doc.addPage();
-          yPosition = margin + 5;
-        }
-        yPosition = addStyledHeader(doc, '> LOCAIS E ATRACOES RELACIONADAS', yPosition, pageWidth);
-
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-
-        for (const place of mentionedPlaces) {
-          if (yPosition > pageHeight - 20) {
-            doc.addPage();
-            yPosition = margin + 5;
-          }
-          
-          doc.text(`- ${place}`, margin + 6, yPosition);
-          yPosition += 5;
-        }
-        yPosition += 3;
-      }
 
       // Linha separadora entre programas
       if (i < programs.length - 1) {
