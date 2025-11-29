@@ -5,7 +5,7 @@ import { Send, Trash2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Message } from "@/types";
+import { Message, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { sendChatMessage } from "@/services/llm";
 
@@ -72,20 +72,21 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
         ...prev,
         { role: "assistant", content: assistantMessage },
       ]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erro ao enviar mensagem:", error);
       
       // Remove user message on error
       setMessages((prev) => prev.slice(0, -1));
       
+      const errorMessage = getErrorMessage(error);
       let errorTitle = "Erro ao enviar mensagem";
-      let errorDescription = error.message || "Tente novamente mais tarde";
+      let errorDescription = errorMessage || "Tente novamente mais tarde";
       
       // Handle specific error codes
-      if (error.message?.includes("429") || error.message?.toLowerCase().includes("rate limit")) {
+      if (errorMessage.includes("429") || errorMessage.toLowerCase().includes("rate limit")) {
         errorTitle = "Limite de requisições atingido";
         errorDescription = "Você está fazendo muitas perguntas. Por favor, aguarde um momento antes de tentar novamente.";
-      } else if (error.message?.includes("402") || error.message?.toLowerCase().includes("insufficient credits")) {
+      } else if (errorMessage.includes("402") || errorMessage.toLowerCase().includes("insufficient credits")) {
         errorTitle = "Créditos insuficientes";
         errorDescription = "Os créditos de IA foram esgotados. Entre em contato com o suporte.";
       }

@@ -39,19 +39,19 @@ const discoverResponseSchema = z.object({
 });
 
 const organizedProgramSchema = z.object({
-  title: z.string().default(""),
-  description: z.string().default(""),
-  start_time: z.string().default(""),
-  end_time: z.string().default(""),
-  address: z.string().default(""),
-  notes: z.string().default(""),
+  title: z.string(),
+  description: z.string(),
+  start_time: z.string(),
+  end_time: z.string(),
+  address: z.string(),
+  notes: z.string(),
   transitToNext: z.string().optional(),
 });
 
 const itinerarySchema = z.object({
-  programs: z.array(organizedProgramSchema).default([]),
-  summary: z.string().default(""),
-  warnings: z.array(z.string()).default([]),
+  programs: z.array(organizedProgramSchema),
+  summary: z.string(),
+  warnings: z.array(z.string()),
   optimizationApplied: z
     .object({
       endNearNextCommitment: z.boolean().optional(),
@@ -143,6 +143,6 @@ export async function organizeItinerary(
   }
 
   return {
-    itinerary: parsedResponse.data.itinerary,
+    itinerary: parsedResponse.data.itinerary as OrganizeItineraryResult["itinerary"],
   };
 }

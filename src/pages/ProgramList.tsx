@@ -7,10 +7,11 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Program } from "@/types";
+import { Program, getErrorMessage } from "@/types";
 import { generateDayPDF } from "@/utils/generateDayPDF";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/components/ui/badge";
+import { useCallback } from "react";
 import { listPrograms } from "@/services/api";
 
 const ProgramList = () => {
@@ -20,11 +21,7 @@ const ProgramList = () => {
   const { toast } = useToast();
   const { userId } = useUser();
 
-  useEffect(() => {
-    loadPrograms();
-  }, []);
-
-  const loadPrograms = async () => {
+  const loadPrograms = useCallback(async () => {
     const { data, error } = await listPrograms();
 
     if (error) {
@@ -37,7 +34,11 @@ const ProgramList = () => {
     }
 
     setPrograms((data as Program[]) || []);
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadPrograms();
+  }, [loadPrograms]);
 
   // Agrupar programas por data
   const programsByDate = useMemo(() => {
@@ -68,11 +69,11 @@ const ProgramList = () => {
         title: "PDF gerado com sucesso!",
         description: "O arquivo foi baixado automaticamente",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao gerar PDF:', error);
       toast({
         title: "Erro ao gerar PDF",
-        description: error.message || "Tente novamente",
+        description: getErrorMessage(error) || "Tente novamente",
         variant: "destructive"
       });
     } finally {
