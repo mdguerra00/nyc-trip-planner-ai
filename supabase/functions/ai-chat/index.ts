@@ -74,21 +74,65 @@ serve(async (req) => {
       contextRegion
     );
 
-    // Fetch chat history based on chat mode
-    const chatTable = isGlobalChat ? 'global_chat_messages' : 'program_chat_messages';
-    
-    let chatHistoryQuery = supabase
-      .from(chatTable)
-      .select('role, content')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-      .limit(50);
-    
-    if (!isGlobalChat) {
-      chatHistoryQuery = chatHistoryQuery.eq('program_id', programId);
+    // Fetch chat history - for global chat, include ALL conversations
+    let chatHistory: any[] = [];
+
+    if (isGlobalChat) {
+      // Fetch global chat messages
+      const { data: globalMessages } = await supabase
+        .from('global_chat_messages')
+        .select('role, content, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      // Fetch ALL program chat messages with program info
+      const { data: programMessages } = await supabase
+        .from('program_chat_messages')
+        .select(`
+          role, 
+          content, 
+          created_at,
+          program_id,
+          programs!inner(title, date)
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      // Combine and sort all messages
+      const allMessages = [
+        ...(globalMessages || []).map(m => ({
+          ...m,
+          source: 'global'
+        })),
+        ...(programMessages || []).map((m: any) => ({
+          ...m,
+          source: 'program',
+          programTitle: m.programs?.title,
+          programDate: m.programs?.date
+        }))
+      ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+      // Format for AI context - include program context when relevant
+      chatHistory = allMessages.slice(-50).map(m => {
+        let content = m.content;
+        if (m.source === 'program' && m.role === 'user') {
+          content = `[Conversa sobre "${m.programTitle}" (${m.programDate})]: ${m.content}`;
+        }
+        return { role: m.role, content };
+      });
+
+    } else {
+      // For program-specific chat, only get that program's messages
+      const { data } = await supabase
+        .from('program_chat_messages')
+        .select('role, content')
+        .eq('user_id', userId)
+        .eq('program_id', programId)
+        .order('created_at', { ascending: true })
+        .limit(50);
+      
+      chatHistory = data || [];
     }
-    
-    const { data: chatHistory } = await chatHistoryQuery;
 
     let specificContext = `O usuário está conversando sobre sua viagem a Nova York.\n`;
 
@@ -109,6 +153,14 @@ serve(async (req) => {
         specificContext += `\nNenhum programa foi criado ainda. Você pode ajudar o viajante a planejar sua viagem.\n`;
       }
       specificContext += `\nConversando de forma GERAL sobre toda a viagem. Considere TODOS os programas ao responder.`;
+      
+      specificContext += `\n\n💬 HISTÓRICO DE CONVERSAS:
+Você tem acesso a TODAS as conversas anteriores, incluindo:
+- Conversas gerais sobre a viagem (chat global)
+- Conversas específicas sobre cada programa agendado
+Quando o usuário perguntar sobre algo que foi discutido anteriormente em qualquer conversa, 
+USE o histórico completo para responder com contexto total. Se o usuário mencionar algo discutido 
+em um programa específico, você DEVE saber do que ele está falando.`;
     } else {
       specificContext += `\nPrograma específico sendo visualizado:\n`;
       specificContext += `- Título: ${programData.title}\n`;
