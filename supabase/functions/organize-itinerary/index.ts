@@ -1,49 +1,22 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
+import { corsHeaders, withAuth } from "../_shared/auth.ts";
+import { OrganizeItineraryRequestSchema } from "../_shared/schemas.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    const parsedBody = OrganizeItineraryRequestSchema.safeParse(await req.json());
+    if (!parsedBody.success) {
       return new Response(
-        JSON.stringify({ error: 'No authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Invalid request payload", details: parsedBody.error.format() }),
+        { status: 400, headers: jsonHeaders }
       );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { selectedAttractions, date, startTime, endTime, region } = await req.json();
-
-    if (!selectedAttractions || !date) {
-      return new Response(
-        JSON.stringify({ error: 'Selected attractions and date are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const { selectedAttractions, date, startTime, endTime, region } = parsedBody.data;
 
     console.log(`🧠 Organizing itinerary for ${date} with ${selectedAttractions.length} attractions`);
 
@@ -52,7 +25,7 @@ serve(async (req) => {
       console.error('LOVABLE_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: jsonHeaders }
       );
     }
 
@@ -232,20 +205,20 @@ FORMATO DE RESPOSTA (JSON válido, sem markdown):
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit atingido. Aguarde um momento e tente novamente.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 429, headers: jsonHeaders }
         );
       }
-      
+
       if (response.status === 402) {
         return new Response(
           JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos ao workspace.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 402, headers: jsonHeaders }
         );
       }
 
       return new Response(
         JSON.stringify({ error: 'Failed to organize itinerary' }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: response.status, headers: jsonHeaders }
       );
     }
 
@@ -256,7 +229,7 @@ FORMATO DE RESPOSTA (JSON válido, sem markdown):
       console.error('No content in AI response');
       return new Response(
         JSON.stringify({ error: 'No response from AI' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: jsonHeaders }
       );
     }
 
@@ -282,12 +255,12 @@ FORMATO DE RESPOSTA (JSON válido, sem markdown):
       if (organizedItinerary.programs.length === 0) {
         console.log('⚠️ No programs organized - AI returned empty array');
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             error: 'Nenhum programa foi organizado. A IA pode não ter encontrado informações suficientes sobre a região ou as atrações selecionadas não são compatíveis com a data escolhida.',
             warnings: organizedItinerary.warnings || [],
             itinerary: { programs: [], summary: organizedItinerary.summary || '', warnings: organizedItinerary.warnings || [] }
           }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: jsonHeaders }
         );
       }
       
@@ -302,37 +275,37 @@ FORMATO DE RESPOSTA (JSON válido, sem markdown):
           content.toLowerCase().includes('não há') ||
           content.toLowerCase().includes('não existe')) {
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             error: 'A IA não conseguiu encontrar informações suficientes sobre essa região ou data. Tente: 1) Escolher uma região mais específica (ex: "SoHo" em vez de "Manhattan"), 2) Verificar se a data está correta, 3) Selecionar outras atrações.',
             rawContent: content.substring(0, 300)
           }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: jsonHeaders }
         );
       }
       
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Erro ao processar resposta da IA. Por favor, tente novamente. Se o problema persistir, tente selecionar menos atrações ou uma região diferente.',
           details: parseError instanceof Error ? parseError.message : 'Unknown parse error',
           rawContent: content.substring(0, 500)
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: jsonHeaders }
       );
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         itinerary: organizedItinerary,
         existingPrograms: existingPrograms || []
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: jsonHeaders }
     );
 
   } catch (error) {
     console.error('Error in organize-itinerary:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: jsonHeaders }
     );
   }
-});
+}));
