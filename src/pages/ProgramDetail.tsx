@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useSwipeable } from 'react-swipeable';
+import { useSwipeable } from "react-swipeable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +22,14 @@ import {
 import { ProgramDialog } from "@/components/ProgramDialog";
 import AiChat from "@/components/AiChat";
 import { Program, FaqItem } from "@/types";
+import { Json } from "@/integrations/supabase/types";
 import { useUser } from "@/hooks/useUser";
+import {
+  deleteProgram as deleteProgramApi,
+  getProgramDetail,
+  invokeFunction,
+  updateProgram,
+} from "@/services/api";
 
 const ProgramDetail = () => {
   const { id } = useParams();
@@ -38,21 +44,17 @@ const ProgramDetail = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (id) {
-      loadProgram();
-    }
-  }, [id]);
+  const loadProgram = useCallback(async () => {
+    if (!id) return;
 
-  const loadProgram = async () => {
-    const { data, error } = await supabase
-      .from("programs")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const { data, error } = await getProgramDetail(id);
 
     if (error) {
-      toast({ title: "Erro ao carregar programa", variant: "destructive" });
+      toast({
+        title: "Erro ao carregar programa",
+        description: error.message,
+        variant: "destructive",
+      });
       navigate("/");
       return;
     }
@@ -65,18 +67,25 @@ const ProgramDetail = () => {
         setAiFaq(data.ai_faq as Array<{ question: string; answer: string }>);
       }
     }
-  };
+  }, [id, navigate, toast]);
+
+  useEffect(() => {
+    if (id) {
+      void loadProgram();
+    }
+  }, [id, loadProgram]);
 
   const saveNotes = async () => {
     if (!program) return;
 
-    const { error } = await supabase
-      .from("programs")
-      .update({ notes })
-      .eq("id", program.id);
+    const { error } = await updateProgram(program.id, { notes });
 
     if (error) {
-      toast({ title: "Erro ao salvar notas", variant: "destructive" });
+      toast({
+        title: "Erro ao salvar notas",
+        description: error.message,
+        variant: "destructive",
+      });
     } else {
       toast({ title: "Notas salvas com sucesso!" });
     }
@@ -87,54 +96,51 @@ const ProgramDetail = () => {
 
     setLoadingAi(true);
     try {
-      // Get AI suggestions
-      const { data, error } = await supabase.functions.invoke("ai-suggestions", {
-        body: { 
+      const { data, error } = await invokeFunction<{ suggestions: string }>(
+        "ai-suggestions",
+        {
           program,
           userId: userId,
-        },
-      });
-
-      if (error) throw error;
-
-      const suggestions = data.suggestions;
-      setAiSuggestions(suggestions);
-
-      // Generate FAQ based on suggestions
-      const { data: faqData, error: faqError } = await supabase.functions.invoke(
-        "generate-faq",
-        {
-          body: { 
-            suggestions,
-            userId: userId,
-            programDate: program.date
-          },
         }
       );
 
-      if (faqError) throw faqError;
+      if (error) throw new Error(error.message);
 
-      const faq = faqData.faq;
+      const suggestions = data?.suggestions || "";
+      setAiSuggestions(suggestions);
+
+      const { data: faqData, error: faqError } = await invokeFunction<{ faq: FaqItem[] }>(
+        "generate-faq",
+        {
+          suggestions,
+          userId: userId,
+          programDate: program.date,
+        }
+      );
+
+      if (faqError) throw new Error(faqError.message);
+
+      const faq = (faqData?.faq || []) as FaqItem[];
       setAiFaq(faq);
 
-      // Save to database
-      const { error: updateError } = await supabase
-        .from("programs")
-        .update({ 
-          ai_suggestions: suggestions,
-          ai_faq: faq
-        })
-        .eq("id", program.id);
+      const serializedFaq = faq as unknown as Json;
 
-      if (updateError) {
-        console.error("Erro ao salvar sugestões:", updateError);
+      const { data: updatedProgram, error: updateError } = await updateProgram(program.id, {
+        ai_suggestions: suggestions,
+        ai_faq: serializedFaq,
+      });
+
+      if (updateError) throw new Error(updateError.message);
+
+      if (updatedProgram) {
+        setProgram(updatedProgram);
       }
 
       toast({ title: "Informações geradas com sucesso!" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao buscar sugestões",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -150,34 +156,32 @@ const ProgramDetail = () => {
     setAiFaq(updatedFaq);
 
     try {
-      const { data, error } = await supabase.functions.invoke("explore-topic", {
-        body: {
-          topic: `${question}\n${answer}`,
-          context: aiSuggestions,
-          userId: userId,
-          programDate: program.date,
-        },
+      const { data, error } = await invokeFunction<{ details: string }>("explore-topic", {
+        topic: `${question}\n${answer}`,
+        context: aiSuggestions,
+        userId: userId,
+        programDate: program.date,
       });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
-      updatedFaq[index].details = data.details;
+      updatedFaq[index].details = data?.details;
       updatedFaq[index].loadingDetails = false;
       setAiFaq(updatedFaq);
 
-      // Save updated FAQ to database
-      const { error: updateError } = await supabase
-        .from("programs")
-        .update({ ai_faq: updatedFaq as any })
-        .eq("id", program.id);
+      const serializedFaq = updatedFaq as unknown as Json;
+
+      const { error: updateError } = await updateProgram(program.id, { ai_faq: serializedFaq });
 
       if (updateError) {
         console.error("Erro ao salvar detalhes:", updateError);
+      } else {
+        setProgram({ ...program, ai_faq: serializedFaq });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Erro ao explorar tópico",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
       updatedFaq[index].loadingDetails = false;
@@ -189,11 +193,8 @@ const ProgramDetail = () => {
     if (!program) return;
 
     console.log("Deletando programa:", program.id);
-    
-    const { error } = await supabase
-      .from("programs")
-      .delete()
-      .eq("id", program.id);
+
+    const { error } = await deleteProgramApi(program.id);
 
     if (error) {
       console.error("Erro ao deletar:", error);

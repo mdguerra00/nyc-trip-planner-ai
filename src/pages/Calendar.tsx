@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Calendar as BigCalendar, momentLocalizer, Event } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "@/styles/calendar.css";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare, FileDown } from "lucide-react";
@@ -30,6 +29,7 @@ import { ItineraryDialog } from "@/components/ItineraryDialog";
 import GlobalAiChat from "@/components/GlobalAiChat";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
+import { listPrograms } from "@/services/api";
 
 moment.locale("pt-br");
 const localizer = momentLocalizer(moment);
@@ -49,37 +49,33 @@ const Calendar = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadPrograms();
-  }, []);
-
-  const loadPrograms = async () => {
-    const { data, error } = await supabase
-      .from("programs")
-      .select("*")
-      .order("date", { ascending: true })
-      .order("start_time", { ascending: true });
+  const loadPrograms = useCallback(async () => {
+    const { data, error } = await listPrograms();
 
     if (error) {
-      toast({ title: "Erro ao carregar programas", variant: "destructive" });
+      toast({
+        title: "Erro ao carregar programas",
+        description: error.message,
+        variant: "destructive",
+      });
       return;
     }
 
-      if (data) {
-        setPrograms(data as Program[]);
+    if (data) {
+      setPrograms(data as Program[]);
       const formattedEvents = data.map((program) => {
         // Parse date in local timezone to avoid timezone shift issues
         const [year, month, day] = program.date.split('-').map(Number);
         const date = new Date(year, month - 1, day);
         let start = date;
         let end = new Date(date);
-        
+
         if (program.start_time) {
           const [hours, minutes] = program.start_time.split(":");
           start = new Date(year, month - 1, day);
           start.setHours(parseInt(hours), parseInt(minutes));
         }
-        
+
         if (program.end_time) {
           const [hours, minutes] = program.end_time.split(":");
           end = new Date(year, month - 1, day);
@@ -96,8 +92,15 @@ const Calendar = () => {
         };
       });
       setEvents(formattedEvents);
+    } else {
+      setPrograms([]);
+      setEvents([]);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    void loadPrograms();
+  }, [loadPrograms]);
 
   const handleLogout = async () => {
     await signOut();
@@ -120,7 +123,7 @@ const Calendar = () => {
       toast({
         title: "Erro",
         description: "Usuário não autenticado",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -132,12 +135,13 @@ const Calendar = () => {
         title: "PDF gerado com sucesso!",
         description: "O arquivo foi baixado automaticamente",
       });
-    } catch (error: any) {
-      console.error('Erro ao gerar PDF:', error);
+    } catch (error: unknown) {
+      console.error("Erro ao gerar PDF:", error);
       toast({
         title: "Erro ao gerar PDF",
-        description: error.message || "Tente novamente",
-        variant: "destructive"
+        description:
+          error instanceof Error ? error.message : "Tente novamente",
+        variant: "destructive",
       });
     } finally {
       setGeneratingPDF(false);
