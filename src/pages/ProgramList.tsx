@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +11,7 @@ import { Program } from "@/types";
 import { generateDayPDF } from "@/utils/generateDayPDF";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/components/ui/badge";
+import { listPrograms } from "@/services/api";
 
 const ProgramList = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -20,26 +20,25 @@ const ProgramList = () => {
   const { toast } = useToast();
   const { userId } = useUser();
 
-  useEffect(() => {
-    loadPrograms();
-  }, []);
+  const loadPrograms = useCallback(async () => {
+    const { data, error } = await listPrograms();
 
-  const loadPrograms = async () => {
-    const { data, error } = await supabase
-      .from("programs")
-      .select("*")
-      .order("date", { ascending: true })
-      .order("start_time", { ascending: true });
-
-    if (error) {
-      toast({ title: "Erro ao carregar programas", variant: "destructive" });
+    if (error || !data) {
+      toast({
+        title: "Erro ao carregar programas",
+        description: error?.message || "Nenhum programa encontrado",
+        variant: "destructive",
+      });
+      setPrograms([]);
       return;
     }
 
-    if (data) {
-      setPrograms(data as Program[]);
-    }
-  };
+    setPrograms(data);
+  }, [toast]);
+
+  useEffect(() => {
+    void loadPrograms();
+  }, [loadPrograms]);
 
   // Agrupar programas por data
   const programsByDate = useMemo(() => {
@@ -70,12 +69,13 @@ const ProgramList = () => {
         title: "PDF gerado com sucesso!",
         description: "O arquivo foi baixado automaticamente",
       });
-    } catch (error: any) {
-      console.error('Erro ao gerar PDF:', error);
+    } catch (error: unknown) {
+      console.error("Erro ao gerar PDF:", error);
       toast({
         title: "Erro ao gerar PDF",
-        description: error.message || "Tente novamente",
-        variant: "destructive"
+        description:
+          error instanceof Error ? error.message : "Tente novamente",
+        variant: "destructive",
       });
     } finally {
       setGeneratingPDF(null);
