@@ -6,7 +6,8 @@ import "@/styles/calendar.css";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare } from "lucide-react";
+import { Plus, LogOut, List, Calendar as CalendarIcon, Menu, MessageSquare, FileDown } from "lucide-react";
+import { generateDayPDF } from "@/utils/generateDayPDF";
 import { Program } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
@@ -34,7 +35,7 @@ moment.locale("pt-br");
 const localizer = momentLocalizer(moment);
 
 const Calendar = () => {
-  const { signOut } = useUser();
+  const { signOut, userId } = useUser();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,6 +43,9 @@ const Calendar = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [globalChatOpen, setGlobalChatOpen] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [selectedPdfDate, setSelectedPdfDate] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -109,6 +113,46 @@ const Calendar = () => {
   const handleSelectEvent = (event: Event) => {
     setEditingProgram(event.resource as Program);
     setDialogOpen(true);
+  };
+
+  const handleGeneratePDF = async (dateStr: string) => {
+    if (!userId) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setGeneratingPDF(true);
+    try {
+      await generateDayPDF(dateStr, userId);
+      toast({
+        title: "PDF gerado com sucesso!",
+        description: "O arquivo foi baixado automaticamente",
+      });
+    } catch (error: any) {
+      console.error('Erro ao gerar PDF:', error);
+      toast({
+        title: "Erro ao gerar PDF",
+        description: error.message || "Tente novamente",
+        variant: "destructive"
+      });
+    } finally {
+      setGeneratingPDF(false);
+      setPdfDialogOpen(false);
+    }
+  };
+
+  const handleDayClick = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const dayPrograms = programs.filter(p => p.date === dateStr);
+    
+    if (dayPrograms.length > 0) {
+      setSelectedPdfDate(dateStr);
+      setPdfDialogOpen(true);
+    }
   };
 
   const handleDialogClose = () => {
@@ -223,6 +267,7 @@ const Calendar = () => {
             events={events}
             onSelectSlot={handleSelectSlot}
             onSelectEvent={handleSelectEvent}
+            onDrillDown={handleDayClick}
             selectable
             views={["month", "week", "day", "agenda"]}
             defaultView="month"
@@ -286,6 +331,79 @@ const Calendar = () => {
           </DialogHeader>
           <div className="px-6 pb-6 h-full overflow-hidden">
             <GlobalAiChat onClose={() => setGlobalChatOpen(false)} />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmação para gerar PDF */}
+      <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileDown className="w-5 h-5" />
+              Gerar PDF do dia
+            </DialogTitle>
+            <DialogDescription>
+              {selectedPdfDate && (
+                <>
+                  Gerar PDF completo com toda a programação de{' '}
+                  <strong>
+                    {new Date(selectedPdfDate + 'T00:00:00').toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </strong>
+                  ?
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              O PDF incluirá:
+            </p>
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+              <li>Todos os programas do dia</li>
+              <li>Horários e endereços</li>
+              <li>Observações e notas</li>
+              <li>Sugestões da IA</li>
+              <li>Perguntas e respostas (FAQ)</li>
+              <li>Todas as conversas sobre os programas</li>
+            </ul>
+            <div className="flex gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setPdfDialogOpen(false)}
+                className="flex-1"
+                disabled={generatingPDF}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => selectedPdfDate && handleGeneratePDF(selectedPdfDate)}
+                disabled={generatingPDF}
+                className="flex-1"
+              >
+                {generatingPDF ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="mr-2"
+                    >
+                      <FileDown className="w-4 h-4" />
+                    </motion.div>
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-4 h-4 mr-2" />
+                    Gerar PDF
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
