@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { PageTransition } from "@/components/PageTransition";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -224,8 +225,9 @@ const ProgramDetail = () => {
   }
 
   return (
-    <div {...handlers} className="min-h-screen bg-background pb-6 sm:pb-0">
-      <motion.header 
+    <PageTransition>
+      <div {...handlers} className="min-h-screen bg-background pb-6 sm:pb-0">
+        <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="border-b bg-card shadow-soft sticky top-0 z-50"
@@ -452,8 +454,9 @@ const ProgramDetail = () => {
           loadProgram();
         }}
         program={program}
-      />
-    </div>
+        />
+      </div>
+    </PageTransition>
   );
 };
 

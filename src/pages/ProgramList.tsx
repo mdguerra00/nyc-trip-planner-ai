@@ -12,6 +12,8 @@ import { generateDayPDF } from "@/utils/generateDayPDF";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/components/ui/badge";
 import { listPrograms } from "@/services/api";
+import { useSwipeable } from "react-swipeable";
+import { PageTransition } from "@/components/PageTransition";
 
 const ProgramList = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -81,9 +83,16 @@ const ProgramList = () => {
     }
   };
 
+  const swipeHandlers = useSwipeable({
+    onSwipedRight: () => navigate("/"),
+    onSwipedLeft: () => navigate("/profile"),
+    trackMouse: false,
+  });
+
   return (
-    <div className="min-h-screen bg-background">
-      <motion.header 
+    <PageTransition>
+      <div {...swipeHandlers} className="min-h-screen bg-background pb-20 sm:pb-4">
+        <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="border-b bg-card shadow-soft"
@@ -218,7 +227,8 @@ const ProgramList = () => {
           )}
         </div>
       </main>
-    </div>
+      </div>
+    </PageTransition>
   );
 };
 

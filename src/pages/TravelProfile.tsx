@@ -18,6 +18,9 @@ import { Loader2, Plus, Trash2, User, CalendarIcon } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useSwipeable } from "react-swipeable";
+import { PageTransition } from "@/components/PageTransition";
+import { PageHeader } from "@/components/PageHeader";
 
 const travelerSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -186,6 +189,11 @@ export default function TravelProfile() {
     }
   };
 
+  const swipeHandlers = useSwipeable({
+    onSwipedRight: () => navigate("/list"),
+    trackMouse: false,
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -195,13 +203,14 @@ export default function TravelProfile() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto p-4 pb-24 sm:pb-4">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Perfil de Viagem</h1>
-        <p className="text-muted-foreground">
-          Configure suas preferências para receber sugestões personalizadas
-        </p>
-      </div>
+    <PageTransition>
+      <div {...swipeHandlers} className="min-h-screen bg-background pb-24 sm:pb-4">
+        <PageHeader
+          title="Perfil de Viagem"
+          subtitle="Configure suas preferências para receber sugestões personalizadas"
+          showBack={false}
+        />
+        <div className="container max-w-4xl mx-auto p-4">
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -676,8 +685,10 @@ export default function TravelProfile() {
               Cancelar
             </Button>
           </div>
-        </form>
-      </Form>
-    </div>
+          </form>
+        </Form>
+        </div>
+      </div>
+    </PageTransition>
   );
 }
