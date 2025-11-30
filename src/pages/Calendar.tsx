@@ -10,6 +10,8 @@ import { generateDayPDF } from "@/utils/generateDayPDF";
 import { Program, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
+import { useSwipeable } from "react-swipeable";
+import { PageTransition } from "@/components/PageTransition";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -163,9 +165,15 @@ const Calendar = () => {
     loadPrograms();
   };
 
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => navigate("/list"),
+    trackMouse: false,
+  });
+
   return (
-    <div className="min-h-screen bg-background">
-      <motion.header 
+    <PageTransition>
+      <div {...swipeHandlers} className="min-h-screen bg-background">
+        <motion.header
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="border-b bg-card shadow-soft sticky top-0 z-50"
@@ -408,7 +416,8 @@ const Calendar = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </PageTransition>
   );
 };
 

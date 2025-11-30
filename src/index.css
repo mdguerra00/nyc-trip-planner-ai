@@ -141,4 +141,34 @@ All colors MUST be HSL.
   .safe-area-pb {
     padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
   }
+  
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  /* Landscape optimization */
+  @media (orientation: landscape) and (max-height: 500px) {
+    /* Reduce header padding in landscape */
+    header {
+      padding-top: 0.5rem !important;
+      padding-bottom: 0.5rem !important;
+    }
+    
+    /* Make content scrollable in landscape */
+    .min-h-screen {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* Optimize calendar for landscape */
+    .rbc-calendar {
+      max-height: calc(100vh - 80px);
+    }
+  }
+  
+  /* Smooth page transitions */
+  .page-transition {
+    transition: var(--transition-smooth);
+  }
 }
