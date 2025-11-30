@@ -35,9 +35,6 @@ const ProgramList = () => {
     setPrograms((data as Program[]) || []);
   }, [toast]);
 
-    setPrograms(data);
-  }, [toast]);
-
   useEffect(() => {
     void loadPrograms();
   }, [loadPrograms]);
