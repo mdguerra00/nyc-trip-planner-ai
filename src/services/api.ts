@@ -80,12 +80,14 @@ export const getChatMessages = async (
 export const saveChatMessage = async (
   programId: string,
   role: Message["role"],
-  content: string
+  content: string,
+  userId: string
 ): Promise<ApiResult<boolean>> => {
   const { error } = await supabase.from("program_chat_messages").insert({
     program_id: programId,
     role,
     content,
+    user_id: userId,
   });
 
   if (error) return { data: null, error: formatError(error) };

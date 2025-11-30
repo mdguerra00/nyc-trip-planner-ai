@@ -10,7 +10,6 @@ import { generateDayPDF } from "@/utils/generateDayPDF";
 import { Program, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
-import { useCallback } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
