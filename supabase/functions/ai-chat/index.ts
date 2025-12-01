@@ -30,9 +30,11 @@ serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!PERPLEXITY_API_KEY || !LOVABLE_API_KEY) {
-      throw new Error('API keys not configured');
+    if (!PERPLEXITY_API_KEY) {
+      throw new Error('PERPLEXITY_API_KEY not configured');
     }
+
+    const canReviewWithGemini = Boolean(LOVABLE_API_KEY);
 
     // Extract date and region from program if available
     let contextDate: string | undefined;
@@ -184,8 +186,14 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
       return realtimeKeywords.some(keyword => lowerQuery.includes(keyword));
     };
 
-    // Function to call Perplexity for real-time queries
+    // Function to call Perplexity for all queries
     const callPerplexity = async (query: string) => {
+      const messages = [
+        { role: 'system', content: tripContext },
+        ...(chatHistory || []),
+        { role: 'user', content: query }
+      ];
+
       const response = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
         headers: {
@@ -194,13 +202,7 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
         },
         body: JSON.stringify({
           model: 'llama-3.1-sonar-large-128k-online',
-          messages: [
-            {
-              role: 'system',
-              content: `${tripContext}\n\nForneça informações ATUALIZADAS em tempo real. Cite fontes quando possível.`
-            },
-            { role: 'user', content: query }
-          ],
+          messages,
           temperature: 0.2,
           max_tokens: 1000,
         }),
@@ -216,12 +218,18 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
       return data.choices[0].message.content;
     };
 
-    // Function to call Gemini for context-based queries
-    const callGemini = async (query: string) => {
-      const messages = [
-        { role: 'system', content: tripContext },
-        ...(chatHistory || []),
-        { role: 'user', content: query }
+    // Secondary review with Gemini to validate and correct the first AI
+    const reviewWithGemini = async (query: string, draft: string) => {
+      if (!LOVABLE_API_KEY) return draft;
+
+      const reviewerSystemPrompt = `${tripContext}\n\nVocê é a IA revisora. Sua função é AUDITAR e CORRIGIR a resposta inicial da outra IA.\n- Verifique se a resposta respeita TODAS as preferências, restrições e dados do banco (hotel, idade, distâncias, restrições de mobilidade/alimentares, ritmo, budget, datas, estação).\n- Cruze informações para evitar erros comuns: sugerir caminhada >2km, locais fechados na data/horário, atrações fora da região ou do perfil.\n- Use todo o histórico e contexto fornecidos. Se algo estiver incorreto, corrija e explique brevemente o ajuste.\n- Priorize sempre a resposta mais segura e exata, sem alucinações.`;
+
+      const reviewMessages = [
+        { role: 'system', content: reviewerSystemPrompt },
+        {
+          role: 'user',
+          content: `Pergunta do usuário: ${query}\n\nResposta inicial da IA 1:\n${draft}\n\nTarefa: devolva uma resposta FINAL corrigida e validada (em português), citando ajustes feitos se encontrou inconsistências.`
+        }
       ];
 
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -232,36 +240,38 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          messages,
+          messages: reviewMessages,
+          temperature: 0.15,
+          max_tokens: 1200,
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('AI API error:', response.status, errorText);
-        
-        if (response.status === 429) {
-          throw new Error('RATE_LIMIT');
-        }
-        if (response.status === 402) {
-          throw new Error('PAYMENT_REQUIRED');
-        }
-        throw new Error('AI API request failed');
+        console.error('Gemini review error:', response.status, errorText);
+        throw new Error('Gemini review failed');
       }
 
       const data = await response.json();
-      return data.choices[0].message.content;
+      return data.choices[0]?.message?.content ?? draft;
     };
 
-    // Intelligent routing
+    // Always use Perplexity for responses
     let assistantMessage: string;
     try {
-      if (needsRealTimeInfo(message)) {
-        console.log('🔍 Using Perplexity for real-time query');
-        assistantMessage = await callPerplexity(message);
+      const usingRealtimeRouting = needsRealTimeInfo(message);
+      console.log(usingRealtimeRouting ? '🔍 Using Perplexity for real-time query' : '🧠 Using Perplexity for contextual query');
+      const draftMessage = await callPerplexity(message);
+      if (canReviewWithGemini) {
+        try {
+          assistantMessage = await reviewWithGemini(message, draftMessage);
+        } catch (reviewError) {
+          console.error('Falling back to Perplexity draft due to Gemini review error:', reviewError);
+          assistantMessage = draftMessage;
+        }
       } else {
-        console.log('🧠 Using Gemini for context-based query');
-        assistantMessage = await callGemini(message);
+        console.warn('Lovable API key missing; returning Perplexity draft without Gemini review');
+        assistantMessage = draftMessage;
       }
     } catch (error) {
       if (error instanceof Error) {

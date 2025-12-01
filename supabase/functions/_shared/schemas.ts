@@ -8,6 +8,7 @@ export const ProgramDataSchema = z.object({
   address: z.string().optional(),
   description: z.string().optional(),
   notes: z.string().optional(),
+  aiSuggestions: z.string().optional(),
 });
 
 export const AiChatRequestSchema = z.object({
