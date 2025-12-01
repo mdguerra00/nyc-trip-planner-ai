@@ -11,7 +11,14 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading } = useUser();
   const location = useLocation();
 
+  console.log('ProtectedRoute: Rendering', { 
+    hasUser: !!user, 
+    isLoading, 
+    path: location.pathname 
+  });
+
   if (isLoading) {
+    console.log('ProtectedRoute: Showing loader');
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -20,9 +27,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    // Salva a localização atual para redirecionar de volta após login
+    console.log('ProtectedRoute: No user, redirecting to /auth');
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
+  console.log('ProtectedRoute: User authenticated, rendering children');
   return <>{children}</>;
 }
