@@ -85,13 +85,17 @@ serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
 
       // Combine and sort all messages
       const allMessages = [
-        ...(globalMessages || []).map(m => ({
-          ...m,
-          source: 'global'
+        ...(globalMessages || []).map((m: any) => ({
+          role: m.role,
+          content: m.content,
+          created_at: m.created_at,
+          source: 'global' as const
         })),
         ...(programMessages || []).map((m: any) => ({
-          ...m,
-          source: 'program',
+          role: m.role,
+          content: m.content,
+          created_at: m.created_at,
+          source: 'program' as const,
           programTitle: m.programs?.title,
           programDate: m.programs?.date
         }))
@@ -146,7 +150,7 @@ Você tem acesso a TODAS as conversas anteriores, incluindo:
 Quando o usuário perguntar sobre algo que foi discutido anteriormente em qualquer conversa, 
 USE o histórico completo para responder com contexto total. Se o usuário mencionar algo discutido 
 em um programa específico, você DEVE saber do que ele está falando.`;
-    } else {
+    } else if (programData) {
       specificContext += `\nPrograma específico sendo visualizado:\n`;
       specificContext += `- Título: ${programData.title}\n`;
       specificContext += `- Data: ${programData.date}\n`;
@@ -172,20 +176,9 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
 
     const tripContext = buildContextualPrompt(travelContext, specificContext);
 
-    // Function to detect if query needs real-time information
-    const needsRealTimeInfo = (query: string): boolean => {
-      const realtimeKeywords = [
-        'agora', 'hoje', 'amanhã', 'aberto', 'fechado', 'funciona', 'horário atual',
-        'disponível', 'lotado', 'cheio', 'clima', 'tempo', 'temperatura', 'trânsito',
-        'tráfego', 'abriu', 'fechou', 'atual', 'neste momento', 'preço atual',
-        'quanto custa agora', 'está aberto', 'está funcionando'
-      ];
-      const lowerQuery = query.toLowerCase();
-      return realtimeKeywords.some(keyword => lowerQuery.includes(keyword));
-    };
-
-    // Function to call Perplexity for real-time queries
+    // Function to call Perplexity to generate draft answer
     const callPerplexity = async (query: string) => {
+      console.log('🔍 Stage 1: Generating Perplexity draft answer...');
       const response = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
         headers: {
@@ -197,12 +190,12 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
           messages: [
             {
               role: 'system',
-              content: `${tripContext}\n\nForneça informações ATUALIZADAS em tempo real. Cite fontes quando possível.`
+              content: `${tripContext}\n\nForneça informações ATUALIZADAS e PRECISAS. Cite fontes verificáveis quando possível. Esta é uma resposta RASCUNHO que será revisada.`
             },
             { role: 'user', content: query }
           ],
           temperature: 0.2,
-          max_tokens: 1000,
+          max_tokens: 1500,
         }),
       });
 
@@ -216,12 +209,37 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
       return data.choices[0].message.content;
     };
 
-    // Function to call Gemini for context-based queries
-    const callGemini = async (query: string) => {
+    // Function to call Gemini to audit and correct Perplexity's draft
+    const callGeminiAuditor = async (query: string, perplexityDraft: string) => {
+      console.log('🧠 Stage 2: Gemini auditing and correcting draft...');
+      
+      const auditPrompt = `📋 REVISÃO E AUDITORIA DE RESPOSTA
+
+PERGUNTA DO USUÁRIO:
+${query}
+
+RASCUNHO GERADO PELO PERPLEXITY:
+${perplexityDraft}
+
+SUA TAREFA:
+1. Revise o rascunho do Perplexity considerando TODO o contexto da viagem do usuário
+2. Verifique se a resposta está alinhada com:
+   - Perfil dos viajantes (idades, interesses, restrições)
+   - Localização do hotel e programas já agendados
+   - Preferências de budget, ritmo e estilo de viagem
+   - Histórico completo de conversas
+3. CORRIJA qualquer informação que contradiga o contexto da viagem
+4. ADICIONE informações personalizadas relevantes do contexto que faltaram
+5. REMOVA informações genéricas e substitua por recomendações personalizadas
+6. Mantenha as fontes e informações factuais corretas do Perplexity
+7. Retorne a resposta FINAL, corrigida e personalizada
+
+IMPORTANTE: Se o rascunho estiver bom e personalizado, apenas confirme e retorne-o. Não invente informações que não estão no contexto.`;
+
       const messages = [
         { role: 'system', content: tripContext },
         ...(chatHistory || []),
-        { role: 'user', content: query }
+        { role: 'user', content: auditPrompt }
       ];
 
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -238,7 +256,7 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('AI API error:', response.status, errorText);
+        console.error('Gemini API error:', response.status, errorText);
         
         if (response.status === 429) {
           throw new Error('RATE_LIMIT');
@@ -246,23 +264,31 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
         if (response.status === 402) {
           throw new Error('PAYMENT_REQUIRED');
         }
-        throw new Error('AI API request failed');
+        throw new Error('Gemini API request failed');
       }
 
       const data = await response.json();
       return data.choices[0].message.content;
     };
 
-    // Intelligent routing
+    // Two-stage process: Perplexity draft → Gemini audit
     let assistantMessage: string;
+    
     try {
-      if (needsRealTimeInfo(message)) {
-        console.log('🔍 Using Perplexity for real-time query');
-        assistantMessage = await callPerplexity(message);
-      } else {
-        console.log('🧠 Using Gemini for context-based query');
-        assistantMessage = await callGemini(message);
+      // Stage 1: Always get Perplexity draft first
+      const perplexityDraft = await callPerplexity(message);
+      console.log('✅ Perplexity draft generated successfully');
+      
+      // Stage 2: Send to Gemini for audit and correction
+      try {
+        assistantMessage = await callGeminiAuditor(message, perplexityDraft);
+        console.log('✅ Gemini audit completed successfully');
+      } catch (geminiError) {
+        // Fallback: Return Perplexity draft if Gemini fails
+        console.warn('⚠️ Gemini audit failed, using Perplexity draft as fallback:', geminiError);
+        assistantMessage = perplexityDraft;
       }
+      
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === 'RATE_LIMIT') {
@@ -283,7 +309,7 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
 
     // Save messages to database based on chat mode
     if (isGlobalChat) {
-      await supabase
+      await (supabase as any)
         .from('global_chat_messages')
         .insert({
           user_id: userId,
@@ -291,7 +317,7 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
           content: message
         });
 
-      await supabase
+      await (supabase as any)
         .from('global_chat_messages')
         .insert({
           user_id: userId,
@@ -299,7 +325,7 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
           content: assistantMessage
         });
     } else {
-      await supabase
+      await (supabase as any)
         .from('program_chat_messages')
         .insert({
           program_id: programId,
@@ -308,7 +334,7 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
           content: message
         });
 
-      await supabase
+      await (supabase as any)
         .from('program_chat_messages')
         .insert({
           program_id: programId,
