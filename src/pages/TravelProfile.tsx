@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -100,12 +100,10 @@ export default function TravelProfile() {
     },
   });
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    if (!userId) return;
+  const loadProfile = useCallback(async () => {
+    if (!userId) {
+      return;
+    }
     
     try {
       const [profileResult, tripConfigResult] = await Promise.all([
@@ -139,7 +137,11 @@ export default function TravelProfile() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, form]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const onSubmit = async (values: ProfileFormValues) => {
     if (!userId) return;
