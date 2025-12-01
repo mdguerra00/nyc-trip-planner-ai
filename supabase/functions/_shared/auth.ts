@@ -19,7 +19,7 @@ export function createSupabaseClient() {
 
 type AuthHandlerContext = {
   req: Request;
-  supabase: ReturnType<typeof createClient>;
+  supabase: any;
   supabaseUrl: string;
   supabaseKey: string;
   user: { id: string };

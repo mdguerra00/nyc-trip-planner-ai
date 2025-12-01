@@ -51,15 +51,15 @@ serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
     }
 
     const existingProgramsText = existingPrograms?.length 
-      ? existingPrograms.map(p => 
+      ? (existingPrograms as any[]).map((p: any) => 
           `${p.start_time || '?'}-${p.end_time || '?'}: ${p.title} em ${p.address || 'endereço não especificado'}`
         ).join('\n')
       : 'Nenhum programa existente neste dia';
 
     // Identificar próximo compromisso (após o horário de fim do itinerário)
-    const nextCommitment = existingPrograms?.find(p => {
+    const nextCommitment = (existingPrograms as any[])?.find((p: any) => {
       const programStart = p.start_time;
-      return programStart && programStart > endTime;
+      return programStart && endTime && programStart > endTime;
     });
 
     const nextCommitmentText = nextCommitment 
@@ -84,8 +84,8 @@ serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
       : '';
 
     // Identificar compromisso anterior (antes do horário de início)
-    const previousCommitment = existingPrograms?.filter(p => {
-      return p.end_time && p.end_time <= startTime;
+    const previousCommitment = (existingPrograms as any[])?.filter((p: any) => {
+      return p.end_time && startTime && p.end_time <= startTime;
     }).pop(); // Pegar o último que termina antes
 
     const previousCommitmentText = previousCommitment
