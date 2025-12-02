@@ -78,7 +78,7 @@ const INTEREST_OPTIONS = [
 
 export default function TravelProfile() {
   const navigate = useNavigate();
-  const { userId } = useUser();
+  const { userId, isLoading: authLoading } = useUser();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -102,6 +102,7 @@ export default function TravelProfile() {
 
   const loadProfile = useCallback(async () => {
     if (!userId) {
+      setLoading(false);
       return;
     }
     
@@ -196,7 +197,7 @@ export default function TravelProfile() {
     trackMouse: false,
   });
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
