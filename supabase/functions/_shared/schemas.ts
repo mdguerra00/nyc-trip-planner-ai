@@ -12,7 +12,7 @@ export const ProgramDataSchema = z.object({
 
 export const AiChatRequestSchema = z.object({
   message: z.string().min(1, "Message is required"),
-  programId: z.string().optional(),
+  programId: z.string().nullish(),
   programData: ProgramDataSchema.optional(),
 });
 
