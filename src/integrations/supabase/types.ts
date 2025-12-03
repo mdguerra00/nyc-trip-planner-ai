@@ -126,74 +126,98 @@ export type Database = {
           avoid_topics: string[] | null
           budget_level: string | null
           created_at: string
+          destination: string | null
           dietary_restrictions: string[] | null
+          group_dynamics: string | null
           id: string
           interests: string[] | null
+          language_preference: string | null
           mobility_notes: string | null
+          morning_preference: string | null
           notes: string | null
           pace: string | null
           preferred_categories: string[] | null
+          special_occasions: Json | null
+          transportation_preference: string | null
           travelers: Json | null
+          trip_purpose: string | null
           updated_at: string
           user_id: string
+          weather_sensitivity: string | null
         }
         Insert: {
           avoid_topics?: string[] | null
           budget_level?: string | null
           created_at?: string
+          destination?: string | null
           dietary_restrictions?: string[] | null
+          group_dynamics?: string | null
           id?: string
           interests?: string[] | null
+          language_preference?: string | null
           mobility_notes?: string | null
+          morning_preference?: string | null
           notes?: string | null
           pace?: string | null
           preferred_categories?: string[] | null
+          special_occasions?: Json | null
+          transportation_preference?: string | null
           travelers?: Json | null
+          trip_purpose?: string | null
           updated_at?: string
           user_id: string
+          weather_sensitivity?: string | null
         }
         Update: {
           avoid_topics?: string[] | null
           budget_level?: string | null
           created_at?: string
+          destination?: string | null
           dietary_restrictions?: string[] | null
+          group_dynamics?: string | null
           id?: string
           interests?: string[] | null
+          language_preference?: string | null
           mobility_notes?: string | null
+          morning_preference?: string | null
           notes?: string | null
           pace?: string | null
           preferred_categories?: string[] | null
+          special_occasions?: Json | null
+          transportation_preference?: string | null
           travelers?: Json | null
+          trip_purpose?: string | null
           updated_at?: string
           user_id?: string
+          weather_sensitivity?: string | null
         }
         Relationships: []
       }
       trip_config: {
         Row: {
           created_at: string
-          end_date: string
+          end_date: string | null
           hotel_address: string | null
           id: string
-          start_date: string
+          start_date: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
-          end_date: string
+          end_date?: string | null
           hotel_address?: string | null
           id?: string
-          start_date: string
+          start_date?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
-          end_date?: string
+          end_date?: string | null
           hotel_address?: string | null
           id?: string
-          start_date?: string
+          start_date?: string | null
           updated_at?: string
           user_id?: string
         }

@@ -14,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, User, CalendarIcon } from "lucide-react";
+import { Loader2, Plus, Trash2, User, CalendarIcon, MapPin, Plane, Sun, Clock } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -28,11 +28,22 @@ const travelerSchema = z.object({
   interests: z.array(z.string()).optional(),
 });
 
+const specialOccasionSchema = z.object({
+  type: z.string(),
+  date: z.string().optional(),
+  person: z.string().optional(),
+});
+
 const profileSchema = z.object({
+  // Trip Config
   start_date: z.date().optional(),
   end_date: z.date().optional(),
   hotel_address: z.string().optional(),
+  destination: z.string().default("New York City"),
+  // Travel Profile
   travelers: z.array(travelerSchema).min(1, "Adicione pelo menos um viajante"),
+  trip_purpose: z.string().default("family_vacation"),
+  language_preference: z.string().default("pt-BR"),
   dietary_restrictions: z.array(z.string()).optional(),
   mobility_notes: z.string().optional(),
   pace: z.enum(["relaxed", "moderate", "intense"]).default("moderate"),
@@ -40,6 +51,11 @@ const profileSchema = z.object({
   preferred_categories: z.array(z.string()).optional(),
   avoid_topics: z.array(z.string()).optional(),
   interests: z.array(z.string()).optional(),
+  transportation_preference: z.string().default("walking_subway"),
+  weather_sensitivity: z.string().default("moderate"),
+  morning_preference: z.string().default("moderate"),
+  group_dynamics: z.string().optional(),
+  special_occasions: z.array(specialOccasionSchema).optional(),
   notes: z.string().optional(),
 });
 
@@ -52,6 +68,8 @@ const DIETARY_OPTIONS = [
   { id: "lactose-free", label: "Sem Lactose" },
   { id: "kosher", label: "Kosher" },
   { id: "halal", label: "Halal" },
+  { id: "seafood-allergy", label: "Alergia a Frutos do Mar" },
+  { id: "nut-allergy", label: "Alergia a Nozes" },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -63,6 +81,8 @@ const CATEGORY_OPTIONS = [
   { id: "arts", label: "Artes & Teatro" },
   { id: "sports", label: "Esportes" },
   { id: "architecture", label: "Arquitetura" },
+  { id: "landmarks", label: "Pontos Turísticos" },
+  { id: "local-experiences", label: "Experiências Locais" },
 ];
 
 const INTEREST_OPTIONS = [
@@ -74,6 +94,37 @@ const INTEREST_OPTIONS = [
   { id: "photography", label: "Fotografia" },
   { id: "adventure", label: "Aventura" },
   { id: "culture", label: "Cultura" },
+  { id: "family-friendly", label: "Atividades em Família" },
+  { id: "relaxation", label: "Relaxamento" },
+];
+
+const TRIP_PURPOSE_OPTIONS = [
+  { value: "family_vacation", label: "Férias em Família" },
+  { value: "romantic", label: "Viagem Romântica" },
+  { value: "solo_adventure", label: "Aventura Solo" },
+  { value: "friends_trip", label: "Viagem com Amigos" },
+  { value: "business_leisure", label: "Negócios + Lazer" },
+  { value: "cultural_immersion", label: "Imersão Cultural" },
+];
+
+const TRANSPORTATION_OPTIONS = [
+  { value: "walking_subway", label: "Caminhada + Metrô" },
+  { value: "taxi_uber", label: "Táxi / Uber" },
+  { value: "rental_car", label: "Carro Alugado" },
+  { value: "public_transit", label: "Transporte Público" },
+  { value: "mixed", label: "Misto" },
+];
+
+const WEATHER_SENSITIVITY_OPTIONS = [
+  { value: "low", label: "Baixa - Qualquer clima" },
+  { value: "moderate", label: "Moderada - Evitar extremos" },
+  { value: "high", label: "Alta - Só tempo bom" },
+];
+
+const MORNING_PREFERENCE_OPTIONS = [
+  { value: "early_bird", label: "Madrugador (antes das 8h)" },
+  { value: "moderate", label: "Moderado (9h-10h)" },
+  { value: "late_riser", label: "Dorminhoco (depois das 10h)" },
 ];
 
 export default function TravelProfile() {
@@ -88,7 +139,10 @@ export default function TravelProfile() {
       start_date: undefined,
       end_date: undefined,
       hotel_address: "",
+      destination: "New York City",
       travelers: [{ name: "", age: undefined, interests: [] }],
+      trip_purpose: "family_vacation",
+      language_preference: "pt-BR",
       dietary_restrictions: [],
       mobility_notes: "",
       pace: "moderate",
@@ -96,6 +150,11 @@ export default function TravelProfile() {
       preferred_categories: [],
       avoid_topics: [],
       interests: [],
+      transportation_preference: "walking_subway",
+      weather_sensitivity: "moderate",
+      morning_preference: "moderate",
+      group_dynamics: "",
+      special_occasions: [],
       notes: "",
     },
   });
@@ -122,7 +181,10 @@ export default function TravelProfile() {
         start_date: tripConfigData?.start_date ? new Date(tripConfigData.start_date + "T00:00:00") : undefined,
         end_date: tripConfigData?.end_date ? new Date(tripConfigData.end_date + "T00:00:00") : undefined,
         hotel_address: tripConfigData?.hotel_address || "",
+        destination: (profileData as any)?.destination || "New York City",
         travelers: profileData?.travelers as any[] || [{ name: "", age: undefined, interests: [] }],
+        trip_purpose: (profileData as any)?.trip_purpose || "family_vacation",
+        language_preference: (profileData as any)?.language_preference || "pt-BR",
         dietary_restrictions: profileData?.dietary_restrictions || [],
         mobility_notes: profileData?.mobility_notes || "",
         pace: (profileData?.pace as "relaxed" | "moderate" | "intense") || "moderate",
@@ -130,6 +192,11 @@ export default function TravelProfile() {
         preferred_categories: profileData?.preferred_categories || [],
         avoid_topics: profileData?.avoid_topics || [],
         interests: profileData?.interests || [],
+        transportation_preference: (profileData as any)?.transportation_preference || "walking_subway",
+        weather_sensitivity: (profileData as any)?.weather_sensitivity || "moderate",
+        morning_preference: (profileData as any)?.morning_preference || "moderate",
+        group_dynamics: (profileData as any)?.group_dynamics || "",
+        special_occasions: (profileData as any)?.special_occasions || [],
         notes: profileData?.notes || "",
       });
     } catch (error) {
@@ -162,7 +229,15 @@ export default function TravelProfile() {
           avoid_topics: values.avoid_topics,
           interests: values.interests,
           notes: values.notes,
-        }, {
+          destination: values.destination,
+          trip_purpose: values.trip_purpose,
+          language_preference: values.language_preference,
+          transportation_preference: values.transportation_preference,
+          weather_sensitivity: values.weather_sensitivity,
+          morning_preference: values.morning_preference,
+          group_dynamics: values.group_dynamics,
+          special_occasions: values.special_occasions,
+        } as any, {
           onConflict: 'user_id'
         });
 
@@ -220,10 +295,26 @@ export default function TravelProfile() {
           {/* Configuração da Viagem */}
           <Card>
             <CardHeader>
-              <CardTitle>Configuração da Viagem</CardTitle>
-              <CardDescription>Quando você vai viajar e onde ficará hospedado?</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Plane className="w-5 h-5" />
+                Configuração da Viagem
+              </CardTitle>
+              <CardDescription>Informações básicas sobre sua viagem</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <FormField
+                control={form.control}
+                name="destination"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Destino</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: New York City" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -311,7 +402,10 @@ export default function TravelProfile() {
                 name="hotel_address"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Endereço do Hotel</FormLabel>
+                    <FormLabel className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      Endereço do Hotel
+                    </FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: 303 Lexington Avenue, New York, NY" {...field} />
                     </FormControl>
@@ -322,13 +416,40 @@ export default function TravelProfile() {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="trip_purpose"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Propósito da Viagem</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {TRIP_PURPOSE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
           {/* Viajantes */}
           <Card>
             <CardHeader>
-              <CardTitle>Viajantes</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Viajantes
+              </CardTitle>
               <CardDescription>Quem está viajando?</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -396,6 +517,171 @@ export default function TravelProfile() {
                 <Plus className="w-4 h-4 mr-2" />
                 Adicionar Viajante
               </Button>
+
+              <FormField
+                control={form.control}
+                name="group_dynamics"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Dinâmica do Grupo (opcional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ex: Viajando com criança de 8 anos que adora dinossauros e uma avó com mobilidade reduzida"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Descreva características especiais do grupo que podem influenciar as sugestões
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Preferências de Horário e Transporte */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                Preferências de Rotina
+              </CardTitle>
+              <CardDescription>Como você prefere organizar seus dias?</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="morning_preference"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preferência de Manhã</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {MORNING_PREFERENCE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="pace"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ritmo de Viagem</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="relaxed">Relaxado</SelectItem>
+                          <SelectItem value="moderate">Moderado</SelectItem>
+                          <SelectItem value="intense">Intenso</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="transportation_preference"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Transporte Preferido</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {TRANSPORTATION_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="budget_level"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nível de Budget</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="budget">Econômico</SelectItem>
+                          <SelectItem value="moderate">Moderado</SelectItem>
+                          <SelectItem value="luxury">Luxo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Clima e Sensibilidade */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sun className="w-5 h-5" />
+                Sensibilidade ao Clima
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FormField
+                control={form.control}
+                name="weather_sensitivity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Como o clima afeta seus planos?</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {WEATHER_SENSITIVITY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      A IA pode sugerir alternativas internas em dias de chuva
+                    </FormDescription>
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
@@ -439,58 +725,6 @@ export default function TravelProfile() {
                         />
                       ))}
                     </div>
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Preferências */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Preferências</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="pace"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Ritmo de Viagem</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="relaxed">Relaxado</SelectItem>
-                        <SelectItem value="moderate">Moderado</SelectItem>
-                        <SelectItem value="intense">Intenso</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="budget_level"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nível de Budget</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="budget">Econômico</SelectItem>
-                        <SelectItem value="moderate">Moderado</SelectItem>
-                        <SelectItem value="luxury">Luxo</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </FormItem>
                 )}
               />
@@ -660,6 +894,9 @@ export default function TravelProfile() {
           <Card>
             <CardHeader>
               <CardTitle>Notas Adicionais</CardTitle>
+              <CardDescription>
+                Qualquer informação extra que possa ajudar a IA a personalizar suas sugestões
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <FormField
@@ -669,7 +906,8 @@ export default function TravelProfile() {
                   <FormItem>
                     <FormControl>
                       <Textarea
-                        placeholder="Qualquer informação adicional que possa ajudar..."
+                        placeholder="Ex: Minha filha é fã de Harry Potter, adoramos cafés especiais, preferimos lugares menos turísticos..."
+                        className="min-h-[120px]"
                         {...field}
                       />
                     </FormControl>
