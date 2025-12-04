@@ -326,19 +326,19 @@ const Calendar = () => {
         </Button>
       </motion.div>
 
-      {/* Dialog do Chat Global */}
+      {/* Dialog do Chat Global - Fullscreen on mobile */}
       <Dialog open={globalChatOpen} onOpenChange={setGlobalChatOpen}>
-        <DialogContent className="max-w-4xl h-[80vh] p-0">
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
+        <DialogContent className="max-w-4xl h-[100dvh] sm:h-[85dvh] p-0 gap-0 sm:rounded-xl rounded-none">
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <MessageSquare className="w-5 h-5 flex-shrink-0" />
               Assistente de Viagem
             </DialogTitle>
-            <DialogDescription>
-              Converse sobre toda sua viagem, eventos e peça dicas
+            <DialogDescription className="text-sm">
+              Pergunte sobre sua viagem
             </DialogDescription>
           </DialogHeader>
-          <div className="px-6 pb-6 h-full overflow-hidden">
+          <div className="px-4 sm:px-6 pb-4 sm:pb-6 flex-1 overflow-hidden">
             <GlobalAiChat onClose={() => setGlobalChatOpen(false)} />
           </div>
         </DialogContent>
