@@ -917,14 +917,17 @@ export default function TravelProfile() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-4">
-            <Button type="submit" disabled={saving} className="flex-1">
-              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Salvar Perfil
-            </Button>
-            <Button type="button" variant="outline" onClick={() => navigate("/")}>
-              Cancelar
-            </Button>
+          {/* Sticky footer for mobile */}
+          <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t py-4 -mx-4 px-4 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-0 sm:py-0 sm:mx-0 sm:px-0">
+            <div className="flex gap-3 sm:gap-4">
+              <Button type="submit" disabled={saving} className="flex-1 min-h-[52px] text-base font-semibold">
+                {saving && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
+                Salvar Perfil
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate("/")} className="min-h-[52px] min-w-[100px]">
+                Cancelar
+              </Button>
+            </div>
           </div>
           </form>
         </Form>

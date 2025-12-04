@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Send, Trash2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   // Load chat history on mount
@@ -52,12 +53,25 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + "px";
+    }
+  }, [input]);
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
     setInput("");
     setIsLoading(true);
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
 
     // Add user message to UI immediately
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
@@ -136,7 +150,7 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
 
   if (isLoadingHistory) {
     return (
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="flex items-center justify-center py-8">
           <div className="text-muted-foreground">Carregando conversa...</div>
         </div>
@@ -145,10 +159,10 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
   }
 
   return (
-    <Card className="p-3 sm:p-6">
+    <Card className="p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-primary" />
+          <MessageSquare className="h-5 w-5 text-primary flex-shrink-0" />
           <h3 className="font-semibold text-sm sm:text-base">Converse com a IA</h3>
         </div>
         {messages.length > 0 && (
@@ -157,25 +171,25 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
             size="icon"
             onClick={clearChat}
             disabled={isLoading}
-            className="min-w-[44px] min-h-[44px]"
+            className="min-w-[48px] min-h-[48px]"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-5 w-5" />
           </Button>
         )}
       </div>
 
       <div className="space-y-4">
         {/* Messages container */}
-        <div className="max-h-[50vh] sm:h-[400px] overflow-y-auto space-y-3 pr-2">
+        <div className="max-h-[40dvh] sm:max-h-[50dvh] overflow-y-auto space-y-3 pr-1 -mr-1">
           <AnimatePresence mode="popLayout">
             {messages.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex items-center justify-center h-full text-muted-foreground text-sm"
+                className="flex items-center justify-center py-8 text-muted-foreground text-sm text-center px-4"
               >
-                Faça uma pergunta sobre o evento para começar a conversa
+                Faça uma pergunta sobre este evento
               </motion.div>
             ) : (
               messages.map((msg, index) => (
@@ -190,13 +204,13 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
                   }`}
                 >
                   <div
-                    className={`rounded-lg px-3 py-2 sm:px-4 sm:py-2 max-w-[85%] sm:max-w-[80%] ${
+                    className={`rounded-2xl px-4 py-3 max-w-[88%] ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
                     }`}
                   >
-                    <p className="text-sm sm:text-base whitespace-pre-wrap break-words">{msg.content}</p>
+                    <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                   </div>
                 </motion.div>
               ))
@@ -208,15 +222,15 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
               animate={{ opacity: 1, y: 0 }}
               className="flex justify-start"
             >
-              <div className="bg-muted rounded-lg px-4 py-2">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
+              <div className="bg-muted rounded-2xl px-4 py-3">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 bg-muted-foreground rounded-full animate-bounce" />
                   <div
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                    className="w-2.5 h-2.5 bg-muted-foreground rounded-full animate-bounce"
                     style={{ animationDelay: "0.1s" }}
                   />
                   <div
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                    className="w-2.5 h-2.5 bg-muted-foreground rounded-full animate-bounce"
                     style={{ animationDelay: "0.2s" }}
                   />
                 </div>
@@ -226,21 +240,23 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
-        <div className="flex gap-2">
-          <Input
+        {/* Input area - iPhone optimized */}
+        <div className="flex gap-3 pt-4 border-t">
+          <Textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Digite sua pergunta..."
+            onKeyDown={handleKeyPress}
+            placeholder="Sua pergunta..."
             disabled={isLoading}
-            className="flex-1 text-base min-h-[44px]"
+            rows={1}
+            className="flex-1 text-[16px] min-h-[56px] max-h-[120px] resize-none rounded-2xl py-4 px-4"
           />
           <Button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
             size="icon"
-            className="min-w-[44px] min-h-[44px]"
+            className="min-w-[56px] min-h-[56px] rounded-2xl flex-shrink-0"
           >
             <Send className="h-5 w-5" />
           </Button>

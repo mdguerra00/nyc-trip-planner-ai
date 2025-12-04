@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Send, Trash2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,7 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   // Load chat history on mount
@@ -54,12 +55,25 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + "px";
+    }
+  }, [input]);
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
     setInput("");
     setIsLoading(true);
+
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
 
     // Add user message to UI immediately
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
@@ -144,12 +158,12 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4 pb-4 border-b">
+      <div className="flex items-center justify-between mb-3 pb-3 border-b">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <div>
-            <h3 className="font-semibold text-base">Chat Global da Viagem</h3>
-            <p className="text-xs text-muted-foreground">Pergunte sobre qualquer aspecto da sua viagem</p>
+          <Sparkles className="h-5 w-5 text-primary flex-shrink-0" />
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm sm:text-base">Chat da Viagem</h3>
+            <p className="text-xs text-muted-foreground truncate">Pergunte sobre sua viagem</p>
           </div>
         </div>
         {messages.length > 0 && (
@@ -158,30 +172,30 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
             size="icon"
             onClick={clearChat}
             disabled={isLoading}
-            className="min-w-[44px] min-h-[44px]"
+            className="min-w-[48px] min-h-[48px] flex-shrink-0"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-5 w-5" />
           </Button>
         )}
       </div>
 
-      <div className="flex-1 flex flex-col space-y-4 min-h-0">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* Messages container */}
-        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1 -mr-1">
           <AnimatePresence mode="popLayout">
             {messages.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="flex flex-col items-center justify-center h-full text-center p-8"
+                className="flex flex-col items-center justify-center h-full text-center px-4 py-8"
               >
-                <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground text-sm max-w-md">
-                  Faça qualquer pergunta sobre sua viagem, eventos criados, dicas de NYC ou planejamento geral.
+                <Sparkles className="h-10 w-10 text-muted-foreground mb-3" />
+                <p className="text-muted-foreground text-sm">
+                  Faça perguntas sobre sua viagem, eventos ou dicas de NYC.
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Exemplos: "Quais programas tenho amanhã?" ou "Me sugira um restaurante"
+                  Ex: "O que fazer amanhã?" ou "Sugira restaurantes"
                 </p>
               </motion.div>
             ) : (
@@ -197,13 +211,13 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
                   }`}
                 >
                   <div
-                    className={`rounded-lg px-3 py-2 sm:px-4 sm:py-2 max-w-[85%] sm:max-w-[80%] ${
+                    className={`rounded-2xl px-4 py-3 max-w-[88%] ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
                     }`}
                   >
-                    <p className="text-sm sm:text-base whitespace-pre-wrap break-words">{msg.content}</p>
+                    <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                   </div>
                 </motion.div>
               ))
@@ -215,15 +229,15 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
               animate={{ opacity: 1, y: 0 }}
               className="flex justify-start"
             >
-              <div className="bg-muted rounded-lg px-4 py-2">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
+              <div className="bg-muted rounded-2xl px-4 py-3">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 bg-muted-foreground rounded-full animate-bounce" />
                   <div
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                    className="w-2.5 h-2.5 bg-muted-foreground rounded-full animate-bounce"
                     style={{ animationDelay: "0.1s" }}
                   />
                   <div
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
+                    className="w-2.5 h-2.5 bg-muted-foreground rounded-full animate-bounce"
                     style={{ animationDelay: "0.2s" }}
                   />
                 </div>
@@ -233,21 +247,23 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input area */}
-        <div className="flex gap-2 pt-4 border-t">
-          <Input
+        {/* Input area - iPhone optimized */}
+        <div className="flex gap-3 pt-4 mt-auto border-t">
+          <Textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Pergunte sobre sua viagem, dicas, eventos..."
+            onKeyDown={handleKeyPress}
+            placeholder="Digite sua pergunta..."
             disabled={isLoading}
-            className="flex-1 text-base min-h-[44px]"
+            rows={1}
+            className="flex-1 text-[16px] min-h-[56px] max-h-[120px] resize-none rounded-2xl py-4 px-4"
           />
           <Button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
             size="icon"
-            className="min-w-[44px] min-h-[44px]"
+            className="min-w-[56px] min-h-[56px] rounded-2xl flex-shrink-0"
           >
             <Send className="h-5 w-5" />
           </Button>
