@@ -45,23 +45,24 @@ const discoverResponseSchema = z.object({
 
 const organizedProgramSchema = z.object({
   title: z.string(),
-  description: z.string(),
+  description: z.string().default(""),
   start_time: z.string(),
   end_time: z.string(),
-  address: z.string(),
-  notes: z.string(),
+  address: z.string().default(""),
+  notes: z.string().optional().default(""),
   transitToNext: z.string().optional(),
 });
 
 const itinerarySchema = z.object({
-  programs: z.array(organizedProgramSchema),
-  summary: z.string(),
-  warnings: z.array(z.string()),
+  programs: z.array(organizedProgramSchema).default([]),
+  summary: z.string().optional().default(""),
+  warnings: z.array(z.string()).optional().default([]),
   optimizationApplied: z
     .object({
       endNearNextCommitment: z.boolean().optional(),
       nextCommitmentTitle: z.string().optional(),
       bufferMinutes: z.number().optional(),
+      suggestedDeparture: z.string().optional(),
     })
     .nullable()
     .optional(),
@@ -77,7 +78,11 @@ const organizeParamsSchema = z.object({
 
 const organizeResponseSchema = z.object({
   itinerary: itinerarySchema.optional(),
+  existingPrograms: z.array(z.any()).optional(),
   error: z.string().optional(),
+  warnings: z.array(z.string()).optional(),
+  rawContent: z.string().optional(),
+  details: z.string().optional(),
 });
 
 export async function discoverAttractions(
@@ -138,16 +143,25 @@ export async function organizeItinerary(
     throw new Error(error.message || "Erro ao organizar itinerário");
   }
 
+  // Primeiro verificar se há erro no response
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
   const parsedResponse = organizeResponseSchema.safeParse(data);
-  if (!parsedResponse.success || !parsedResponse.data.itinerary) {
+  if (!parsedResponse.success) {
+    console.error("Schema validation failed:", parsedResponse.error);
     throw new Error("Resposta inválida ao organizar itinerário");
   }
 
-  if (parsedResponse.data.error) {
-    throw new Error(parsedResponse.data.error);
-  }
+  // Se não há itinerary, criar um default vazio
+  const itinerary = parsedResponse.data.itinerary || {
+    programs: [],
+    summary: "",
+    warnings: parsedResponse.data.warnings || [],
+  };
 
   return {
-    itinerary: parsedResponse.data.itinerary as OrganizeItineraryResult["itinerary"],
+    itinerary: itinerary as OrganizeItineraryResult["itinerary"],
   };
 }
