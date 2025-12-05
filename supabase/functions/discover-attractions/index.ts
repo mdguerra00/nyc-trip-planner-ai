@@ -6,6 +6,61 @@ import { DiscoverAttractionsRequestSchema } from "../_shared/schemas.ts";
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
+// Fallback: use Lovable AI to convert text to JSON
+async function convertTextToJson(text: string, region: string): Promise<any[]> {
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+  if (!lovableApiKey) {
+    console.error('LOVABLE_API_KEY not available for fallback');
+    return [];
+  }
+
+  console.log('🔄 Using Lovable AI fallback to convert text to JSON...');
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a JSON converter. Extract tourist attractions from the text and return ONLY a valid JSON array. No explanations.'
+        },
+        {
+          role: 'user',
+          content: `Extract attractions from this text about ${region} and return as a JSON array with objects containing: name, type, address, hours, description, estimatedDuration (number), neighborhood. Text:\n\n${text}`
+        }
+      ],
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error('Lovable AI fallback failed:', await response.text());
+    return [];
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  
+  try {
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith('```json')) {
+      cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    const parsed = JSON.parse(cleanContent.trim());
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    console.error('Fallback JSON parse also failed');
+    return [];
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -47,131 +102,63 @@ serve(async (req) => {
       );
       
       const specificContext = `
-O usuário está procurando atrações para ${region} em ${date}.
-${userSuggestion ? `Sugestão específica do usuário: "${userSuggestion}"` : ""}
-${requestMore ? "O usuário quer opções menos conhecidas e diferentes." : ""}
-
-Use o contexto do viajante para personalizar as sugestões, considerando:
-- Restrições alimentares ao sugerir restaurantes
-- Interesses e preferências para selecionar atrações relevantes
-- Ritmo de viagem para sugerir quantidade adequada de atividades
-- Mobilidade para recomendar locais acessíveis
-- Tópicos a evitar
+Searching attractions for ${region} on ${date}.
+${userSuggestion ? `User suggestion: "${userSuggestion}"` : ""}
+${requestMore ? "User wants lesser-known options." : ""}
 `;
       
       contextualPrefix = buildContextualPrompt(travelContext, specificContext);
     }
 
+    // Simplified prompt structure
+    const baseFields = `Each object must have:
+- name: official name
+- type: museum/restaurant/park/event/attraction
+- address: full address
+- hours: operating hours
+- description: 2-3 sentence description
+- estimatedDuration: minutes (number)
+- neighborhood: area name
+- rating: rating if known (e.g., "4.5/5")
+- whyRecommended: why worth visiting`;
+
     let prompt: string;
+    let expectedCount: string;
 
     if (userSuggestion) {
-      // User-specific suggestion
+      expectedCount = "1-3";
       prompt = `${contextualPrefix}
 
-⚠️⚠️⚠️ VALIDAÇÃO TEMPORAL CRÍTICA ⚠️⚠️⚠️
-ATENÇÃO: Se "${userSuggestion}" for um evento pontual, ele DEVE ocorrer EXATAMENTE no dia ${date}.
-Se for evento de outra data → retorne array vazio [].
-Se for atração permanente → confirme que está aberta em ${date}.
+Find information about "${userSuggestion}" in ${region}, New York for ${date}.
 
-Busque informações detalhadas sobre "${userSuggestion}" em Nova York, considerando a região de ${region} e a data ${date}.
+${baseFields}
 
-⭐ INFORMAÇÕES OBRIGATÓRIAS DE VERIFICAÇÃO:
-Para CADA local, você DEVE incluir dados verificáveis de fontes reais (Google Maps, Yelp, TripAdvisor, etc):
-
-Para este local específico, forneça EXATAMENTE as seguintes informações em formato JSON:
-- name: nome completo oficial
-- type: tipo (atração, restaurante, evento, museu, parque, etc)
-- address: endereço completo com CEP se possível
-- hours: horário de funcionamento para o dia ${date}
-- description: descrição detalhada (3-4 linhas)
-- estimatedDuration: tempo estimado de visita em minutos
-- neighborhood: bairro específico
-- imageUrl: URL de uma foto representativa do local
-- infoUrl: URL do site oficial ou Google Maps
-- rating: avaliação média (ex: "4.5/5" ou "4.5 estrelas Google Maps") - OBRIGATÓRIO
-- reviewCount: número aproximado de avaliações (ex: "1200+ avaliações") - OBRIGATÓRIO
-- whyRecommended: motivo ESPECÍFICO da recomendação (ex: "Famoso pelo pastrami desde 1888", "Reconhecido pelo NY Times 2023") - OBRIGATÓRIO
-- verificationUrl: link direto do Google Maps para verificar o local - OBRIGATÓRIO
-
-⚠️ Se NÃO encontrar dados verificáveis (rating, reviews) para um local, NÃO o inclua na lista.
-
-Retorne um array JSON válido com 1-3 resultados VERIFICÁVEIS. Apenas JSON, sem texto adicional.`;
+Return a JSON array with ${expectedCount} results. Only JSON, no other text.`;
     } else if (requestMore) {
-      // Request for additional suggestions
+      expectedCount = "6-10";
       prompt = `${contextualPrefix}
 
-⚠️⚠️⚠️ VALIDAÇÃO TEMPORAL OBRIGATÓRIA ⚠️⚠️⚠️
-APENAS inclua eventos que acontecem EXATAMENTE em ${date}.
-Atrações permanentes devem estar ABERTAS em ${date}.
-REMOVA qualquer item de data incorreta.
+List lesser-known attractions, hidden gems, restaurants and activities in ${region}, New York for ${date}.
 
-Liste OUTRAS atrações, eventos, restaurantes e atividades turísticas em ${region}, Nova York, adequadas para o dia ${date}. 
-Busque opções DIFERENTES e menos conhecidas, incluindo joias escondidas.
+${baseFields}
 
-⭐ INFORMAÇÕES OBRIGATÓRIAS DE VERIFICAÇÃO:
-Para CADA local, você DEVE incluir dados verificáveis de fontes reais (Google Maps, Yelp, TripAdvisor, etc):
-
-Para cada item, forneça EXATAMENTE as informações em formato JSON:
-- name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl
-- rating: avaliação média (ex: "4.5/5" ou "4.5 estrelas Google Maps") - OBRIGATÓRIO
-- reviewCount: número aproximado de avaliações (ex: "1200+ avaliações") - OBRIGATÓRIO
-- whyRecommended: motivo ESPECÍFICO da recomendação (ex: "Famoso pelo pastrami desde 1888", "Reconhecido pelo NY Times 2023") - OBRIGATÓRIO
-- verificationUrl: link direto do Google Maps para verificar o local - OBRIGATÓRIO
-
-⚠️ Se NÃO encontrar dados verificáveis (rating, reviews) para um local, NÃO o inclua na lista.
-
-Retorne um array JSON válido com 6-10 sugestões DIFERENTES E VERIFICÁVEIS. Apenas JSON, sem texto adicional.`;
+Return a JSON array with ${expectedCount} different suggestions. Only JSON, no other text.`;
     } else {
-      // Standard discovery
+      expectedCount = "8-12";
       prompt = `${contextualPrefix}
 
-⚠️⚠️⚠️ VALIDAÇÃO TEMPORAL OBRIGATÓRIA ⚠️⚠️⚠️
+List the best attractions, restaurants and activities in ${region}, New York for ${date}.
 
-ANTES DE LISTAR QUALQUER ITEM, VOCÊ DEVE:
+If "${region}" is a specific point (like "Columbus Circle", "Times Square"):
+- Prioritize places within 10-15 min walking distance
+- Include nearby restaurants and attractions
 
-1. EVENTOS PONTUAIS (shows, jogos, festivais, apresentações):
-   - APENAS eventos que acontecem EXATAMENTE no dia ${date}
-   - SE um evento acontece em outra data → REMOVA IMEDIATAMENTE
-   - NUNCA sugira eventos passados ou futuros
+${baseFields}
 
-2. ATRAÇÕES PERMANENTES (museus, restaurantes, parques):
-   - Verificar se estão ABERTOS no dia ${date}
-   - Confirmar horários de funcionamento para esta data específica
-   - Se fechado → REMOVA da lista
-
-3. VALIDAÇÃO FINAL:
-   - Revise CADA item antes de retornar
-   - Remova QUALQUER item que não seja válido para ${date}
-   - Em caso de dúvida sobre a data → NÃO inclua o item
-
-Liste as principais atrações, eventos, restaurantes e atividades turísticas em ou PRÓXIMAS a ${region}, Nova York, adequadas para o dia ${date}.
-
-⭐ CRITÉRIO DE PROXIMIDADE:
-- Se ${region} for um PONTO ESPECÍFICO (ex: "Columbus Circle", "Times Square", "SoHo"):
-  → Priorize opções a no máximo 10-15 minutos A PÉ
-  → Mencione distâncias/tempos de caminhada quando relevante
-  → Agrupe por proximidade (ex: "5 min norte", "caminhável", "no local")
-  → Inclua estabelecimentos, atrações e restaurantes PRÓXIMOS
-- Se ${region} for REGIÃO AMPLA (ex: "Manhattan", "Brooklyn", "Midtown"):
-  → Diversifique dentro da região
-  → Mencione sub-bairros/áreas específicas
-  → Cubra diferentes partes da região
-
-⭐ INFORMAÇÕES OBRIGATÓRIAS DE VERIFICAÇÃO:
-Para CADA local, você DEVE incluir dados verificáveis de fontes reais (Google Maps, Yelp, TripAdvisor, etc):
-
-Para cada item, forneça EXATAMENTE as informações em formato JSON:
-- name, type, address, hours, description, estimatedDuration, neighborhood, imageUrl, infoUrl
-- rating: avaliação média (ex: "4.5/5" ou "4.5 estrelas Google Maps") - OBRIGATÓRIO
-- reviewCount: número aproximado de avaliações (ex: "1200+ avaliações") - OBRIGATÓRIO  
-- whyRecommended: motivo ESPECÍFICO da recomendação (ex: "Famoso pelo pastrami desde 1888", "Reconhecido pelo NY Times 2023") - OBRIGATÓRIO
-- verificationUrl: link direto do Google Maps para verificar o local - OBRIGATÓRIO
-
-⚠️ IMPORTANTE: Se NÃO encontrar dados verificáveis (rating, reviews) para um local, NÃO o inclua na lista.
-⚠️ Priorize locais BEM ESTABELECIDOS com avaliações reais de usuários.
-
-Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apenas JSON, sem texto adicional.`;
+Return a JSON array with ${expectedCount} varied suggestions. Only JSON, no other text.`;
     }
+
+    console.log('📤 Sending request to Perplexity...');
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -184,15 +171,15 @@ Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apen
         messages: [
           {
             role: 'system',
-            content: 'You are a NYC tourism expert. Always respond with valid JSON arrays only. Consider user preferences and restrictions when making suggestions.'
+            content: 'You are a JSON API for NYC tourism. Always respond with ONLY a valid JSON array. No explanations, no markdown code blocks, no text before or after - just the raw JSON array starting with [ and ending with ].'
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        temperature: 0.2,
-        max_tokens: 2000,
+        temperature: 0.3,
+        max_tokens: 3000,
       }),
     });
 
@@ -217,11 +204,13 @@ Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apen
     }
 
     // Extract JSON from response
-    let attractions;
+    let attractions: any[] = [];
     try {
-      console.log('Raw content from Perplexity:', content.substring(0, 200));
+      console.log('Raw content from Perplexity:', content.substring(0, 300));
       
       let cleanContent = content.trim();
+      
+      // Remove markdown code blocks
       if (cleanContent.startsWith('```json')) {
         cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
       } else if (cleanContent.startsWith('```')) {
@@ -229,45 +218,56 @@ Retorne um array JSON válido com 8-12 sugestões variadas E VERIFICÁVEIS. Apen
       }
       cleanContent = cleanContent.trim();
       
-      console.log('Cleaned content:', cleanContent.substring(0, 200));
+      // Try to find JSON array in the response
+      const jsonMatch = cleanContent.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        cleanContent = jsonMatch[0];
+      }
+      
+      console.log('Cleaned content preview:', cleanContent.substring(0, 200));
       attractions = JSON.parse(cleanContent);
 
       if (!Array.isArray(attractions)) {
         throw new Error('Response is not an array');
       }
 
-      // Validate and enrich data
-      attractions = attractions.map((attr: any, index: number) => ({
-        id: `attr-${Date.now()}-${index}`,
-        name: attr.name || 'Unknown',
-        type: attr.type || 'atração',
-        address: attr.address || 'Endereço não especificado',
-        hours: attr.hours || 'Verificar horários',
-        description: attr.description || 'Sem descrição',
-        estimatedDuration: attr.estimatedDuration || 60,
-        neighborhood: attr.neighborhood || region,
-        imageUrl: attr.imageUrl || null,
-        infoUrl: attr.infoUrl || null,
-        rating: attr.rating || null,
-        reviewCount: attr.reviewCount || null,
-        whyRecommended: attr.whyRecommended || null,
-        verificationUrl: attr.verificationUrl || null,
-      }));
-
-      console.log(`✅ Found ${attractions.length} attractions`);
-
     } catch (parseError) {
       console.error('Failed to parse Perplexity response:', parseError);
-      console.error('Raw content:', content);
+      console.log('Attempting fallback with Lovable AI...');
       
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to parse AI response',
-          rawContent: content.substring(0, 500)
-        }),
-        { status: 500, headers: jsonHeaders }
-      );
+      // Use fallback to convert text to JSON
+      attractions = await convertTextToJson(content, region);
+      
+      if (attractions.length === 0) {
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to parse AI response',
+            attractions: []
+          }),
+          { status: 200, headers: jsonHeaders }
+        );
+      }
     }
+
+    // Validate and enrich data
+    attractions = attractions.map((attr: any, index: number) => ({
+      id: `attr-${Date.now()}-${index}`,
+      name: attr.name || 'Unknown',
+      type: attr.type || 'atração',
+      address: attr.address || 'Endereço não especificado',
+      hours: attr.hours || 'Verificar horários',
+      description: attr.description || 'Sem descrição',
+      estimatedDuration: typeof attr.estimatedDuration === 'number' ? attr.estimatedDuration : 60,
+      neighborhood: attr.neighborhood || region,
+      imageUrl: attr.imageUrl || null,
+      infoUrl: attr.infoUrl || null,
+      rating: attr.rating || null,
+      reviewCount: attr.reviewCount || null,
+      whyRecommended: attr.whyRecommended || null,
+      verificationUrl: attr.verificationUrl || null,
+    }));
+
+    console.log(`✅ Found ${attractions.length} attractions`);
 
     return new Response(
       JSON.stringify({ attractions }),
