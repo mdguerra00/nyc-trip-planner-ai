@@ -124,38 +124,33 @@ ${requestMore ? "User wants lesser-known options." : ""}
 
     let prompt: string;
     let expectedCount: string;
+    
+    // Context is added at end to not confuse the model's JSON output
+    const contextSuffix = contextualPrefix ? `\n\nAdditional context:\n${contextualPrefix}` : "";
 
     if (userSuggestion) {
       expectedCount = "1-3";
-      prompt = `${contextualPrefix}
-
-Find information about "${userSuggestion}" in ${region}, New York for ${date}.
+      prompt = `Find information about "${userSuggestion}" in ${region}, New York for ${date}.
 
 ${baseFields}
 
-Return a JSON array with ${expectedCount} results. Only JSON, no other text.`;
+Return a JSON array with ${expectedCount} results.${contextSuffix}`;
     } else if (requestMore) {
       expectedCount = "6-10";
-      prompt = `${contextualPrefix}
-
-List lesser-known attractions, hidden gems, restaurants and activities in ${region}, New York for ${date}.
+      prompt = `List lesser-known attractions, hidden gems, restaurants and activities in ${region}, New York for ${date}.
 
 ${baseFields}
 
-Return a JSON array with ${expectedCount} different suggestions. Only JSON, no other text.`;
+Return a JSON array with ${expectedCount} different suggestions.${contextSuffix}`;
     } else {
       expectedCount = "8-12";
-      prompt = `${contextualPrefix}
+      prompt = `List the best attractions, restaurants and activities in ${region}, New York for ${date}.
 
-List the best attractions, restaurants and activities in ${region}, New York for ${date}.
-
-If "${region}" is a specific point (like "Columbus Circle", "Times Square"):
-- Prioritize places within 10-15 min walking distance
-- Include nearby restaurants and attractions
+If "${region}" is a specific point (like "Columbus Circle", "Times Square"), prioritize places within 10-15 min walking distance.
 
 ${baseFields}
 
-Return a JSON array with ${expectedCount} varied suggestions. Only JSON, no other text.`;
+Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
     }
 
     console.log('📤 Sending request to Perplexity...');
