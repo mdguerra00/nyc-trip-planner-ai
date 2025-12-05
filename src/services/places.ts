@@ -9,21 +9,26 @@ import {
 } from "@/types/places";
 
 const attractionSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   name: z.string(),
   type: z.string().default(""),
   address: z.string().default(""),
   hours: z.string().default(""),
   description: z.string().default(""),
   estimatedDuration: z.coerce.number().optional().default(0),
-  neighborhood: z.string().default(""),
-  imageUrl: z.string().optional(),
-  infoUrl: z.string().optional(),
-  rating: z.coerce.string().optional(),
-  reviewCount: z.coerce.string().optional(),
-  whyRecommended: z.string().optional(),
-  verificationUrl: z.string().optional(),
-});
+  neighborhood: z.string().optional().default(""),
+  imageUrl: z.string().nullable().optional(),
+  infoUrl: z.string().nullable().optional(),
+  rating: z.union([z.string(), z.number()]).nullable().optional(),
+  reviewCount: z.union([z.string(), z.number()]).nullable().optional(),
+  whyRecommended: z.string().nullable().optional(),
+  verificationUrl: z.string().nullable().optional(),
+}).transform((data) => ({
+  ...data,
+  id: data.id || crypto.randomUUID(),
+  rating: data.rating?.toString(),
+  reviewCount: data.reviewCount?.toString(),
+}));
 
 const discoverParamsSchema = z.object({
   region: z.string().min(1, "Região é obrigatória"),
