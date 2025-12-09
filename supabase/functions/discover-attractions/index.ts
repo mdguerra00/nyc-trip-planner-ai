@@ -1,7 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { withAuth, corsHeaders } from "../_shared/auth.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
-import { corsHeaders, createSupabaseClient } from "../_shared/auth.ts";
 import { DiscoverAttractionsRequestSchema } from "../_shared/schemas.ts";
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
@@ -61,11 +60,7 @@ async function convertTextToJson(text: string, region: string): Promise<any[]> {
   }
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
   try {
     const parsedBody = DiscoverAttractionsRequestSchema.safeParse(await req.json());
     if (!parsedBody.success) {
@@ -75,7 +70,8 @@ serve(async (req) => {
       );
     }
 
-    const { region, date, userSuggestion, requestMore, userId } = parsedBody.data;
+    const { region, date, userSuggestion, requestMore } = parsedBody.data;
+    const userId = user.id;
 
     const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
     
@@ -89,26 +85,23 @@ serve(async (req) => {
 
     console.log(`🔍 Searching attractions for ${region} on ${date}`, { userSuggestion, requestMore, userId });
 
-    // Build travel context if userId is provided
+    // Build travel context
     let contextualPrefix = "";
-    if (userId) {
-      const { supabaseUrl, supabaseKey } = createSupabaseClient();
-      const travelContext = await buildTravelContext(
-        userId,
-        supabaseUrl,
-        supabaseKey,
-        date,
-        region
-      );
-      
-      const specificContext = `
+    const travelContext = await buildTravelContext(
+      userId,
+      supabaseUrl,
+      supabaseKey,
+      date,
+      region
+    );
+    
+    const specificContext = `
 Searching attractions for ${region} on ${date}.
 ${userSuggestion ? `User suggestion: "${userSuggestion}"` : ""}
 ${requestMore ? "User wants lesser-known options." : ""}
 `;
-      
-      contextualPrefix = buildContextualPrompt(travelContext, specificContext);
-    }
+    
+    contextualPrefix = buildContextualPrompt(travelContext, specificContext);
 
     // Simplified prompt structure
     const baseFields = `Each object must have:
@@ -276,4 +269,4 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
       { status: 500, headers: jsonHeaders }
     );
   }
-});
+}));
