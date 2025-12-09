@@ -1,40 +1,26 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.84.0";
+import { withAuth, corsHeaders } from "../_shared/auth.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
   try {
-    const { program, userId } = await req.json();
+    const { program } = await req.json();
+    const userId = user.id;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!LOVABLE_API_KEY) {
       throw new Error("Required environment variables not configured");
     }
 
-    // Build travel context if userId is provided
-    let contextualPrompt = "";
-    if (userId) {
-      const travelContext = await buildTravelContext(
-        userId,
-        SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY,
-        program.date
-      );
-      
-      const specificContext = `
+    // Build travel context
+    const travelContext = await buildTravelContext(
+      userId,
+      supabaseUrl,
+      supabaseKey,
+      program.date
+    );
+    
+    const specificContext = `
 O usuário planejou a seguinte atividade:
 
 ATIVIDADE: ${program.title}
@@ -67,17 +53,8 @@ Forneça informações úteis e práticas sobre este local e seus arredores, inc
 
 Seja específico, factual e considere TODO o perfil do viajante. Organize com markdown.
 `;
-      
-      contextualPrompt = buildContextualPrompt(travelContext, specificContext);
-    } else {
-      // Fallback if no userId
-      contextualPrompt = `Você é um guia turístico especializado em Nova York. Forneça informações sobre:
-
-${program.title} - ${program.address || ""}
-Data: ${program.date}
-
-Seja factual e verificável.`;
-    }
+    
+    const contextualPrompt = buildContextualPrompt(travelContext, specificContext);
 
     console.log("Generating suggestions for:", program.title);
 
@@ -125,4 +102,4 @@ Seja factual e verificável.`;
       }
     );
   }
-});
+}));

@@ -1,19 +1,19 @@
 project_id = "zgmhbywdbikkzuvqfgpg"
 
 [functions.ai-suggestions]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-faq]
-verify_jwt = false
+verify_jwt = true
 
 [functions.explore-topic]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ai-chat]
 verify_jwt = true
 
 [functions.discover-attractions]
-verify_jwt = false
+verify_jwt = true
 
 [functions.organize-itinerary]
 verify_jwt = true
