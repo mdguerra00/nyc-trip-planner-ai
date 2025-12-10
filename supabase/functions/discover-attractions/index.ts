@@ -5,15 +5,15 @@ import { DiscoverAttractionsRequestSchema } from "../_shared/schemas.ts";
 
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
-// Fallback: use Lovable AI to convert text to JSON
-async function convertTextToJson(text: string, region: string): Promise<any[]> {
+// Fallback: usar Lovable AI para converter texto em JSON
+async function convertTextToJson(text: string, region: string, profileContext: string): Promise<any[]> {
   const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!lovableApiKey) {
     console.error('LOVABLE_API_KEY not available for fallback');
     return [];
   }
 
-  console.log('🔄 Using Lovable AI fallback to convert text to JSON...');
+  console.log('🔄 Usando Lovable AI fallback para converter texto em JSON...');
 
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -26,11 +26,16 @@ async function convertTextToJson(text: string, region: string): Promise<any[]> {
       messages: [
         {
           role: 'system',
-          content: 'You are a JSON converter. Extract tourist attractions from the text and return ONLY a valid JSON array. No explanations.'
+          content: 'Você é um conversor de JSON. Extraia atrações turísticas do texto e retorne APENAS um array JSON válido. Sem explicações.'
         },
         {
           role: 'user',
-          content: `Extract attractions from this text about ${region} and return as a JSON array with objects containing: name, type, address, hours, description, estimatedDuration (number), neighborhood. Text:\n\n${text}`
+          content: `Extraia atrações deste texto sobre ${region} e retorne como um array JSON com objetos contendo: name, type, address, hours, description, estimatedDuration (número em minutos), neighborhood, rating, whyRecommended.
+
+CONTEXTO DO PERFIL (use para filtrar sugestões relevantes):
+${profileContext}
+
+Texto:\n\n${text}`
         }
       ],
       temperature: 0.1,
@@ -60,6 +65,159 @@ async function convertTextToJson(text: string, region: string): Promise<any[]> {
   }
 }
 
+// Constrói contexto do perfil para o prompt
+function buildProfileContext(travelContext: any): string {
+  const profile = travelContext.profile;
+  const tripConfig = travelContext.tripConfig;
+  
+  if (!profile) {
+    return "Nenhum perfil configurado.";
+  }
+
+  const lines: string[] = [];
+  
+  // Viajantes com idades
+  if (profile.travelers && Array.isArray(profile.travelers) && profile.travelers.length > 0) {
+    const travelerInfo = profile.travelers.map((t: any) => {
+      const age = t.age ? ` (${t.age} anos)` : '';
+      return `${t.name}${age}`;
+    }).join(', ');
+    lines.push(`👥 VIAJANTES: ${travelerInfo}`);
+    
+    // Destacar se há crianças
+    const children = profile.travelers.filter((t: any) => t.age && t.age < 18);
+    if (children.length > 0) {
+      const childNames = children.map((c: any) => `${c.name} (${c.age} anos)`).join(', ');
+      lines.push(`👧 HÁ CRIANÇA(S) NO GRUPO: ${childNames} → INCLUA ATRAÇÕES APROPRIADAS PARA IDADE!`);
+    }
+  }
+
+  // Categorias preferidas (PRIORIZAR)
+  if (profile.preferred_categories && profile.preferred_categories.length > 0) {
+    lines.push(`\n✅ CATEGORIAS QUE INTERESSAM (PRIORIZE ESTAS):\n- ${profile.preferred_categories.join('\n- ')}`);
+  }
+
+  // Interesses gerais
+  if (profile.interests && profile.interests.length > 0) {
+    lines.push(`\n🎯 INTERESSES DO GRUPO:\n- ${profile.interests.join('\n- ')}`);
+  }
+
+  // Tópicos a EVITAR (CRÍTICO)
+  if (profile.avoid_topics && profile.avoid_topics.length > 0) {
+    lines.push(`\n⛔ EVITAR ABSOLUTAMENTE (NUNCA SUGIRA):\n- ${profile.avoid_topics.join('\n- ')}`);
+  }
+
+  // Restrições alimentares
+  if (profile.dietary_restrictions && profile.dietary_restrictions.length > 0) {
+    lines.push(`\n🍽️ RESTRIÇÕES ALIMENTARES (considere ao sugerir restaurantes):\n- ${profile.dietary_restrictions.join('\n- ')}`);
+  }
+
+  // Mobilidade
+  if (profile.mobility_notes) {
+    lines.push(`\n♿ MOBILIDADE: ${profile.mobility_notes}`);
+  }
+
+  // Ritmo
+  if (profile.pace) {
+    const paceMap: Record<string, string> = {
+      'relaxed': 'Relaxado (poucas atividades, mais tempo em cada lugar)',
+      'moderate': 'Moderado (equilíbrio entre atividades e descanso)',
+      'active': 'Ativo (muitas atividades, ritmo intenso)'
+    };
+    lines.push(`\n🚶 RITMO PREFERIDO: ${paceMap[profile.pace] || profile.pace}`);
+  }
+
+  // Orçamento
+  if (profile.budget_level) {
+    const budgetMap: Record<string, string> = {
+      'budget': 'Econômico (priorize opções gratuitas ou baratas)',
+      'moderate': 'Moderado (bom custo-benefício)',
+      'premium': 'Premium (experiências de alta qualidade)',
+      'luxury': 'Luxo (sem restrições de custo)'
+    };
+    lines.push(`\n💰 ORÇAMENTO: ${budgetMap[profile.budget_level] || profile.budget_level}`);
+  }
+
+  // Preferência de transporte
+  if (profile.transportation_preference) {
+    const transportMap: Record<string, string> = {
+      'walking_only': 'Apenas caminhando',
+      'walking_subway': 'Caminhando + metrô',
+      'taxi_uber': 'Táxi/Uber',
+      'mixed': 'Misto (flexível)'
+    };
+    lines.push(`\n🚇 TRANSPORTE: ${transportMap[profile.transportation_preference] || profile.transportation_preference}`);
+  }
+
+  // Notas especiais (MUITO IMPORTANTE - contém preferências específicas do usuário)
+  if (profile.notes) {
+    lines.push(`\n📝 NOTAS IMPORTANTES DO VIAJANTE (LEIA COM ATENÇÃO E SIGA):\n${profile.notes}`);
+  }
+
+  // Hotel (para proximidade)
+  if (tripConfig?.hotel_address) {
+    lines.push(`\n🏨 HOTEL: ${tripConfig.hotel_address}`);
+  }
+
+  return lines.join('\n');
+}
+
+// Gera instruções de balanceamento dinâmico baseado no perfil
+function buildBalancingInstructions(profile: any): string {
+  if (!profile) {
+    return `
+⚖️ BALANCEAMENTO PADRÃO:
+- Variedade de tipos: atrações, restaurantes, parques, experiências
+- Máximo 2-3 restaurantes/cafés
+- Incluir opções ao ar livre se possível`;
+  }
+
+  const instructions: string[] = ['⚖️ BALANCEAMENTO BASEADO NO PERFIL:'];
+  
+  const preferredCategories = profile.preferred_categories || [];
+  const avoidTopics = profile.avoid_topics || [];
+
+  // Instruções baseadas em categorias preferidas
+  if (preferredCategories.includes('restaurants')) {
+    instructions.push('- Restaurantes são bem-vindos (até 3-4 opções variadas)');
+  } else {
+    instructions.push('- Máximo 1-2 restaurantes (não é prioridade)');
+  }
+
+  if (preferredCategories.includes('museums')) {
+    instructions.push('- Inclua museus relevantes');
+  } else if (avoidTopics.some((t: string) => t.toLowerCase().includes('museu'))) {
+    instructions.push('- NÃO inclua museus');
+  }
+
+  if (preferredCategories.includes('parks')) {
+    instructions.push('- Inclua parques e espaços ao ar livre');
+  }
+
+  if (preferredCategories.includes('shopping')) {
+    instructions.push('- Inclua opções de compras interessantes');
+  }
+
+  if (preferredCategories.includes('landmarks')) {
+    instructions.push('- Inclua pontos turísticos icônicos');
+  }
+
+  if (preferredCategories.includes('local-experiences')) {
+    instructions.push('- Inclua experiências locais autênticas');
+  }
+
+  // Se há crianças
+  if (profile.travelers?.some((t: any) => t.age && t.age < 18)) {
+    instructions.push('- INCLUA atrações family-friendly apropriadas para as idades das crianças');
+  }
+
+  // Variedade geral
+  instructions.push('- Garanta variedade nos tipos de atividades sugeridas');
+  instructions.push('- Considere a proximidade geográfica entre as sugestões');
+
+  return instructions.join('\n');
+}
+
 Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
   try {
     const parsedBody = DiscoverAttractionsRequestSchema.safeParse(await req.json());
@@ -83,10 +241,9 @@ Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
       );
     }
 
-    console.log(`🔍 Searching attractions for ${region} on ${date}`, { userSuggestion, requestMore, userId });
+    console.log(`🔍 Buscando atrações para ${region} em ${date}`, { userSuggestion, requestMore, userId });
 
-    // Build travel context
-    let contextualPrefix = "";
+    // Construir contexto de viagem
     const travelContext = await buildTravelContext(
       userId,
       supabaseUrl,
@@ -95,58 +252,82 @@ Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
       region
     );
     
-    const specificContext = `
-Searching attractions for ${region} on ${date}.
-${userSuggestion ? `User suggestion: "${userSuggestion}"` : ""}
-${requestMore ? "User wants lesser-known options." : ""}
-`;
-    
-    contextualPrefix = buildContextualPrompt(travelContext, specificContext);
+    // Construir contexto do perfil para uso no prompt
+    const profileContext = buildProfileContext(travelContext);
+    const balancingInstructions = buildBalancingInstructions(travelContext.profile);
 
-    // Simplified prompt structure
-    const baseFields = `Each object must have:
-- name: official name
-- type: museum/restaurant/park/event/attraction
-- address: full address
-- hours: operating hours
-- description: 2-3 sentence description
-- estimatedDuration: minutes (number)
-- neighborhood: area name
-- rating: rating if known (e.g., "4.5/5")
-- whyRecommended: why worth visiting`;
+    console.log('📋 Contexto do perfil:', profileContext.substring(0, 500));
+
+    // Campos base em português
+    const baseFields = `Cada objeto DEVE ter:
+- name: nome oficial do local
+- type: tipo (museu/restaurante/parque/evento/atração/loja/experiência)
+- address: endereço completo em Nova York
+- hours: horário de funcionamento
+- description: descrição de 2-3 frases EM PORTUGUÊS
+- estimatedDuration: duração estimada em minutos (número)
+- neighborhood: nome do bairro/área
+- rating: avaliação se conhecida (ex: "4.5/5")
+- whyRecommended: por que vale a pena visitar EM PORTUGUÊS (considere o perfil dos viajantes)`;
 
     let prompt: string;
     let expectedCount: string;
-    
-    // Context is added at end to not confuse the model's JSON output
-    const contextSuffix = contextualPrefix ? `\n\nAdditional context:\n${contextualPrefix}` : "";
 
     if (userSuggestion) {
       expectedCount = "1-3";
-      prompt = `Find information about "${userSuggestion}" in ${region}, New York for ${date}.
+      prompt = `Encontre informações sobre "${userSuggestion}" em ${region}, Nova York para ${date}.
 
 ${baseFields}
 
-Return a JSON array with ${expectedCount} results.${contextSuffix}`;
+Retorne um array JSON com ${expectedCount} resultados.
+
+📋 PERFIL DOS VIAJANTES (USE ATIVAMENTE PARA PERSONALIZAR):
+${profileContext}
+
+${balancingInstructions}`;
     } else if (requestMore) {
       expectedCount = "6-10";
-      prompt = `List lesser-known attractions, hidden gems, restaurants and activities in ${region}, New York for ${date}.
+      prompt = `Liste atrações menos conhecidas, joias escondidas, restaurantes e atividades em ${region}, Nova York para ${date}.
 
 ${baseFields}
 
-Return a JSON array with ${expectedCount} different suggestions.${contextSuffix}`;
+📋 PERFIL DOS VIAJANTES (USE ATIVAMENTE - MUITO IMPORTANTE):
+${profileContext}
+
+${balancingInstructions}
+
+⚠️ REGRAS CRÍTICAS:
+- SIGA as preferências do perfil acima
+- EVITE absolutamente o que está marcado como "EVITAR"
+- Se há crianças, INCLUA opções apropriadas para elas
+- Leia as NOTAS do viajante e siga as preferências específicas
+
+Retorne um array JSON com ${expectedCount} sugestões variadas.`;
     } else {
       expectedCount = "8-12";
-      prompt = `List the best attractions, restaurants and activities in ${region}, New York for ${date}.
+      prompt = `Liste as melhores atrações e atividades em ${region}, Nova York para ${date}.
 
-If "${region}" is a specific point (like "Columbus Circle", "Times Square"), prioritize places within 10-15 min walking distance.
+Se "${region}" é um ponto específico (como "Columbus Circle", "Times Square", "SoHo"), priorize lugares a 10-15 minutos de caminhada.
 
 ${baseFields}
 
-Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
+📋 PERFIL DOS VIAJANTES (USE ATIVAMENTE - MUITO IMPORTANTE):
+${profileContext}
+
+${balancingInstructions}
+
+⚠️ REGRAS CRÍTICAS:
+- SIGA as preferências de categoria do perfil acima
+- EVITE absolutamente o que está marcado como "EVITAR"
+- Se há crianças, INCLUA opções apropriadas para elas
+- Leia as NOTAS do viajante e siga as preferências específicas
+- Considere o orçamento e ritmo preferidos
+- Sugestões de restaurantes devem respeitar restrições alimentares
+
+Retorne um array JSON com ${expectedCount} sugestões variadas e personalizadas.`;
     }
 
-    console.log('📤 Sending request to Perplexity...');
+    console.log('📤 Enviando requisição para Perplexity...');
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -159,7 +340,9 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
         messages: [
           {
             role: 'system',
-            content: 'You are a JSON API for NYC tourism. Always respond with ONLY a valid JSON array. No explanations, no markdown code blocks, no text before or after - just the raw JSON array starting with [ and ending with ].'
+            content: `Você é uma API JSON especializada em turismo em Nova York. SEMPRE responda com APENAS um array JSON válido. Sem explicações, sem blocos de código markdown, sem texto antes ou depois - apenas o array JSON bruto começando com [ e terminando com ].
+
+IMPORTANTE: Todas as descrições e recomendações devem ser em PORTUGUÊS BRASILEIRO.`
           },
           {
             role: 'user',
@@ -167,15 +350,15 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
           }
         ],
         temperature: 0.3,
-        max_tokens: 3000,
+        max_tokens: 4000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Perplexity API error:', response.status, errorText);
+      console.error('Erro da API Perplexity:', response.status, errorText);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch attractions from Perplexity' }),
+        JSON.stringify({ error: 'Falha ao buscar atrações do Perplexity' }),
         { status: response.status, headers: jsonHeaders }
       );
     }
@@ -184,21 +367,21 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
     const content = data.choices[0]?.message?.content;
 
     if (!content) {
-      console.error('No content in Perplexity response');
+      console.error('Sem conteúdo na resposta do Perplexity');
       return new Response(
-        JSON.stringify({ error: 'No content received from AI' }),
+        JSON.stringify({ error: 'Nenhum conteúdo recebido da IA' }),
         { status: 500, headers: jsonHeaders }
       );
     }
 
-    // Extract JSON from response
+    // Extrair JSON da resposta
     let attractions: any[] = [];
     try {
-      console.log('Raw content from Perplexity:', content.substring(0, 300));
+      console.log('Conteúdo bruto do Perplexity:', content.substring(0, 300));
       
       let cleanContent = content.trim();
       
-      // Remove markdown code blocks
+      // Remover blocos de código markdown
       if (cleanContent.startsWith('```json')) {
         cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
       } else if (cleanContent.startsWith('```')) {
@@ -206,30 +389,30 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
       }
       cleanContent = cleanContent.trim();
       
-      // Try to find JSON array in the response
+      // Tentar encontrar array JSON na resposta
       const jsonMatch = cleanContent.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         cleanContent = jsonMatch[0];
       }
       
-      console.log('Cleaned content preview:', cleanContent.substring(0, 200));
+      console.log('Conteúdo limpo (preview):', cleanContent.substring(0, 200));
       attractions = JSON.parse(cleanContent);
 
       if (!Array.isArray(attractions)) {
-        throw new Error('Response is not an array');
+        throw new Error('Resposta não é um array');
       }
 
     } catch (parseError) {
-      console.error('Failed to parse Perplexity response:', parseError);
-      console.log('Attempting fallback with Lovable AI...');
+      console.error('Falha ao parsear resposta do Perplexity:', parseError);
+      console.log('Tentando fallback com Lovable AI...');
       
-      // Use fallback to convert text to JSON
-      attractions = await convertTextToJson(content, region);
+      // Usar fallback para converter texto em JSON
+      attractions = await convertTextToJson(content, region, profileContext);
       
       if (attractions.length === 0) {
         return new Response(
           JSON.stringify({
-            error: 'Failed to parse AI response',
+            error: 'Falha ao processar resposta da IA',
             attractions: []
           }),
           { status: 200, headers: jsonHeaders }
@@ -237,10 +420,10 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
       }
     }
 
-    // Validate and enrich data
+    // Validar e enriquecer dados
     attractions = attractions.map((attr: any, index: number) => ({
       id: `attr-${Date.now()}-${index}`,
-      name: attr.name || 'Unknown',
+      name: attr.name || 'Desconhecido',
       type: attr.type || 'atração',
       address: attr.address || 'Endereço não especificado',
       hours: attr.hours || 'Verificar horários',
@@ -255,7 +438,7 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
       verificationUrl: attr.verificationUrl || null,
     }));
 
-    console.log(`✅ Found ${attractions.length} attractions`);
+    console.log(`✅ Encontradas ${attractions.length} atrações`);
 
     return new Response(
       JSON.stringify({ attractions }),
@@ -263,9 +446,9 @@ Return a JSON array with ${expectedCount} varied suggestions.${contextSuffix}`;
     );
 
   } catch (error) {
-    console.error('Error in discover-attractions:', error);
+    console.error('Erro em discover-attractions:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
       { status: 500, headers: jsonHeaders }
     );
   }
