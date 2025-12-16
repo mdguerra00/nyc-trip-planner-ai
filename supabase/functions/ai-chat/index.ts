@@ -213,28 +213,30 @@ Você é um assistente de viagem amigável e prestativo. Responda de forma perso
     const callGeminiAuditor = async (query: string, perplexityDraft: string) => {
       console.log('🧠 Stage 2: Gemini auditing and correcting draft...');
       
-      const auditPrompt = `📋 REVISÃO E AUDITORIA DE RESPOSTA
+      const auditPrompt = `TAREFA: Gerar resposta final para o usuário.
 
 PERGUNTA DO USUÁRIO:
 ${query}
 
-RASCUNHO GERADO PELO PERPLEXITY:
+INFORMAÇÕES DE BASE (use para enriquecer sua resposta):
 ${perplexityDraft}
 
-SUA TAREFA:
-1. Revise o rascunho do Perplexity considerando TODO o contexto da viagem do usuário
-2. Verifique se a resposta está alinhada com:
-   - Perfil dos viajantes (idades, interesses, restrições)
-   - Localização do hotel e programas já agendados
-   - Preferências de budget, ritmo e estilo de viagem
-   - Histórico completo de conversas
-3. CORRIJA qualquer informação que contradiga o contexto da viagem
-4. ADICIONE informações personalizadas relevantes do contexto que faltaram
-5. REMOVA informações genéricas e substitua por recomendações personalizadas
-6. Mantenha as fontes e informações factuais corretas do Perplexity
-7. Retorne a resposta FINAL, corrigida e personalizada
+INSTRUÇÕES:
+1. Use as informações acima como base para sua resposta
+2. Personalize considerando o contexto completo da viagem (perfil, hotel, preferências, programas)
+3. Corrija informações que contradigam o contexto do viajante
+4. Adicione detalhes personalizados relevantes do contexto
+5. Mantenha informações factuais e fontes corretas
 
-IMPORTANTE: Se o rascunho estiver bom e personalizado, apenas confirme e retorne-o. Não invente informações que não estão no contexto.`;
+⚠️ REGRA CRÍTICA DE OUTPUT:
+- Sua resposta deve conter APENAS o texto final para o usuário
+- NUNCA mencione "rascunho", "Perplexity", "auditoria", "verificação", "revisão" ou qualquer processo interno
+- NUNCA inclua análises como "A auditoria está excelente...", "Confirmo que...", "O rascunho está bom..."
+- NUNCA explique o que você está fazendo internamente - apenas responda ao usuário
+- Responda DIRETAMENTE ao usuário como se você fosse o único assistente
+- NÃO faça meta-comentários sobre a qualidade da resposta
+
+Responda em português, de forma natural e direta.`;
 
       const messages = [
         { role: 'system', content: tripContext },
