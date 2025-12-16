@@ -77,7 +77,7 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     try {
-      const assistantMessage = await sendChatMessage(
+      const response = await sendChatMessage(
         program.id,
         buildProgramChatContext(program, aiSuggestions),
         userMessage
@@ -86,7 +86,7 @@ export default function AiChat({ program, aiSuggestions }: AiChatProps) {
       // Add assistant message to UI
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: assistantMessage },
+        { role: "assistant", content: response.message },
       ]);
     } catch (error: unknown) {
       console.error("Erro ao enviar mensagem:", error);

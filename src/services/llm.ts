@@ -19,8 +19,18 @@ export interface ProgramChatContext {
   aiSuggestions?: string;
 }
 
+export interface ActionExecuted {
+  type: 'add_program' | 'update_program' | 'delete_program';
+  program?: Program;
+}
+
+export interface ChatResponse {
+  message: string;
+  action_executed?: ActionExecuted;
+}
+
 interface LlmProvider {
-  sendMessage: (payload: ChatMessagePayload) => Promise<string>;
+  sendMessage: (payload: ChatMessagePayload) => Promise<ChatResponse>;
 }
 
 function getLlmProviderName(): LlmProviderName {
@@ -29,7 +39,7 @@ function getLlmProviderName(): LlmProviderName {
 }
 
 const buildPerplexityProvider = (): LlmProvider => {
-  const callAiChat = async (payload: ChatMessagePayload) => {
+  const callAiChat = async (payload: ChatMessagePayload): Promise<ChatResponse> => {
     const { data, error } = await supabase.functions.invoke("ai-chat", {
       body: {
         message: payload.message,
@@ -42,7 +52,10 @@ const buildPerplexityProvider = (): LlmProvider => {
       throw error;
     }
 
-    return data.message as string;
+    return {
+      message: data.message as string,
+      action_executed: data.action_executed,
+    };
   };
 
   return {
@@ -67,7 +80,7 @@ export const sendChatMessage = async (
   programId: string | null,
   programData: ProgramChatContext | undefined,
   message: string
-): Promise<string> => {
+): Promise<ChatResponse> => {
   const providerName = getLlmProviderName();
 
   switch (providerName) {
