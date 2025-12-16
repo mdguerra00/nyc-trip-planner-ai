@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Trash2, Sparkles } from "lucide-react";
+import { Send, Trash2, Sparkles, CheckCircle2, PlusCircle, Pencil, Trash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Message, getErrorMessage } from "@/types";
 import { useUser } from "@/hooks/useUser";
-import { sendChatMessage } from "@/services/llm";
+import { sendChatMessage, ActionExecuted } from "@/services/llm";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface GlobalAiChatProps {
   onClose?: () => void;
@@ -22,6 +23,7 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Load chat history on mount
   useEffect(() => {
@@ -63,6 +65,30 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
     }
   }, [input]);
 
+  const handleActionExecuted = (action: ActionExecuted) => {
+    const actionLabels = {
+      add_program: { icon: PlusCircle, label: "Programa adicionado", color: "text-green-600" },
+      update_program: { icon: Pencil, label: "Programa atualizado", color: "text-blue-600" },
+      delete_program: { icon: Trash, label: "Programa removido", color: "text-red-600" },
+    };
+
+    const config = actionLabels[action.type];
+    const Icon = config.icon;
+
+    toast({
+      title: (
+        <div className="flex items-center gap-2">
+          <Icon className={`h-4 w-4 ${config.color}`} />
+          <span>{config.label}</span>
+        </div>
+      ) as any,
+      description: action.program?.title || "Ação executada com sucesso",
+    });
+
+    // Invalidate queries to refresh calendar/list
+    queryClient.invalidateQueries({ queryKey: ["programs"] });
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -79,13 +105,18 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     try {
-      const assistantMessage = await sendChatMessage(null, undefined, userMessage);
+      const response = await sendChatMessage(null, undefined, userMessage);
 
       // Add assistant message to UI
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: assistantMessage },
+        { role: "assistant", content: response.message },
       ]);
+
+      // Handle action if executed
+      if (response.action_executed) {
+        handleActionExecuted(response.action_executed);
+      }
     } catch (error: unknown) {
       console.error("Erro ao enviar mensagem:", error);
       
@@ -163,7 +194,7 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
           <Sparkles className="h-5 w-5 text-primary flex-shrink-0" />
           <div className="min-w-0">
             <h3 className="font-semibold text-sm sm:text-base">Chat da Viagem</h3>
-            <p className="text-xs text-muted-foreground truncate">Pergunte sobre sua viagem</p>
+            <p className="text-xs text-muted-foreground truncate">Pergunte ou peça para adicionar ao roteiro</p>
           </div>
         </div>
         {messages.length > 0 && (
@@ -192,10 +223,10 @@ export default function GlobalAiChat({ onClose }: GlobalAiChatProps) {
               >
                 <Sparkles className="h-10 w-10 text-muted-foreground mb-3" />
                 <p className="text-muted-foreground text-sm">
-                  Faça perguntas sobre sua viagem, eventos ou dicas de NYC.
+                  Faça perguntas ou peça para adicionar ao roteiro.
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Ex: "O que fazer amanhã?" ou "Sugira restaurantes"
+                  Ex: "Adiciona o Carbone dia 22 às 19h" ou "Sugira restaurantes"
                 </p>
               </motion.div>
             ) : (
