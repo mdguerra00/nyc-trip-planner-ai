@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Program {
@@ -15,95 +14,100 @@ interface Program {
   ai_faq: any;
 }
 
+interface PdfContent {
+  region_intro: {
+    region_name: string;
+    intro_text: string;
+  };
+  locations: Array<{
+    program_index: number;
+    guide_text: string;
+  }>;
+}
 
 // Função para remover emojis e caracteres especiais não-ASCII
 function removeEmojis(text: string): string {
   if (!text) return '';
   
   return text
-    // Remove emojis Unicode (ranges completos)
-    .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
-    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Símbolos & Pictogramas
-    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transporte & Mapas
-    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Bandeiras
-    .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Símbolos diversos
-    .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
-    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation Selectors
-    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols
-    .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess Symbols
-    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols Extended-A
-    .replace(/[\u{231A}-\u{231B}]/gu, '')   // Watch, Hourglass
-    .replace(/[\u{23E9}-\u{23F3}]/gu, '')   // Botões de mídia
-    .replace(/[\u{23F8}-\u{23FA}]/gu, '')   // Mais botões
-    .replace(/[\u{25AA}-\u{25AB}]/gu, '')   // Quadrados
-    .replace(/[\u{25B6}]/gu, '')            // Play
-    .replace(/[\u{25C0}]/gu, '')            // Reverse
-    .replace(/[\u{25FB}-\u{25FE}]/gu, '')   // Mais quadrados
-    .replace(/[\u{2614}-\u{2615}]/gu, '')   // Guarda-chuva, café
-    .replace(/[\u{2648}-\u{2653}]/gu, '')   // Signos
-    .replace(/[\u{267F}]/gu, '')            // Acessibilidade
-    .replace(/[\u{2693}]/gu, '')            // Âncora
-    .replace(/[\u{26A1}]/gu, '')            // Raio
-    .replace(/[\u{26AA}-\u{26AB}]/gu, '')   // Círculos
-    .replace(/[\u{26BD}-\u{26BE}]/gu, '')   // Bolas esportivas
-    .replace(/[\u{26C4}-\u{26C5}]/gu, '')   // Boneco de neve, sol
-    .replace(/[\u{26CE}]/gu, '')            // Ophiuchus
-    .replace(/[\u{26D4}]/gu, '')            // Proibido
-    .replace(/[\u{26EA}]/gu, '')            // Igreja
-    .replace(/[\u{26F2}-\u{26F3}]/gu, '')   // Fonte, golfe
-    .replace(/[\u{26F5}]/gu, '')            // Barco
-    .replace(/[\u{26FA}]/gu, '')            // Tenda
-    .replace(/[\u{26FD}]/gu, '')            // Posto
-    .replace(/[\u{2702}]/gu, '')            // Tesoura
-    .replace(/[\u{2705}]/gu, '')            // Check verde
-    .replace(/[\u{2708}-\u{270D}]/gu, '')   // Avião, etc
-    .replace(/[\u{270F}]/gu, '')            // Lápis
-    .replace(/[\u{2712}]/gu, '')            // Caneta
-    .replace(/[\u{2714}]/gu, '')            // Check
-    .replace(/[\u{2716}]/gu, '')            // X
-    .replace(/[\u{271D}]/gu, '')            // Cruz
-    .replace(/[\u{2721}]/gu, '')            // Estrela de Davi
-    .replace(/[\u{2728}]/gu, '')            // Sparkles
-    .replace(/[\u{2733}-\u{2734}]/gu, '')   // Asteriscos
-    .replace(/[\u{2744}]/gu, '')            // Floco de neve
-    .replace(/[\u{2747}]/gu, '')            // Sparkle
-    .replace(/[\u{274C}]/gu, '')            // X vermelho
-    .replace(/[\u{274E}]/gu, '')            // X verde
-    .replace(/[\u{2753}-\u{2755}]/gu, '')   // Interrogações
-    .replace(/[\u{2757}]/gu, '')            // Exclamação
-    .replace(/[\u{2763}-\u{2764}]/gu, '')   // Coração
-    .replace(/[\u{2795}-\u{2797}]/gu, '')   // Operações matemáticas
-    .replace(/[\u{27A1}]/gu, '')            // Seta direita
-    .replace(/[\u{27B0}]/gu, '')            // Loop
-    .replace(/[\u{27BF}]/gu, '')            // Loop duplo
-    .replace(/[\u{2934}-\u{2935}]/gu, '')   // Setas
-    .replace(/[\u{2B05}-\u{2B07}]/gu, '')   // Setas
-    .replace(/[\u{2B1B}-\u{2B1C}]/gu, '')   // Quadrados
-    .replace(/[\u{2B50}]/gu, '*')           // Estrela -> asterisco
-    .replace(/[\u{2B55}]/gu, 'o')           // Círculo -> o
-    .replace(/[\u{3030}]/gu, '~')           // Wavy dash
-    .replace(/[\u{303D}]/gu, '')            // Part alternation mark
-    .replace(/[\u{3297}]/gu, '')            // Circled Ideograph
-    .replace(/[\u{3299}]/gu, '')            // Circled Ideograph Secret
-    // Substituições úteis
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
+    .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')
+    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
+    .replace(/[\u{231A}-\u{231B}]/gu, '')
+    .replace(/[\u{23E9}-\u{23F3}]/gu, '')
+    .replace(/[\u{23F8}-\u{23FA}]/gu, '')
+    .replace(/[\u{25AA}-\u{25AB}]/gu, '')
+    .replace(/[\u{25B6}]/gu, '')
+    .replace(/[\u{25C0}]/gu, '')
+    .replace(/[\u{25FB}-\u{25FE}]/gu, '')
+    .replace(/[\u{2614}-\u{2615}]/gu, '')
+    .replace(/[\u{2648}-\u{2653}]/gu, '')
+    .replace(/[\u{267F}]/gu, '')
+    .replace(/[\u{2693}]/gu, '')
+    .replace(/[\u{26A1}]/gu, '')
+    .replace(/[\u{26AA}-\u{26AB}]/gu, '')
+    .replace(/[\u{26BD}-\u{26BE}]/gu, '')
+    .replace(/[\u{26C4}-\u{26C5}]/gu, '')
+    .replace(/[\u{26CE}]/gu, '')
+    .replace(/[\u{26D4}]/gu, '')
+    .replace(/[\u{26EA}]/gu, '')
+    .replace(/[\u{26F2}-\u{26F3}]/gu, '')
+    .replace(/[\u{26F5}]/gu, '')
+    .replace(/[\u{26FA}]/gu, '')
+    .replace(/[\u{26FD}]/gu, '')
+    .replace(/[\u{2702}]/gu, '')
+    .replace(/[\u{2705}]/gu, '')
+    .replace(/[\u{2708}-\u{270D}]/gu, '')
+    .replace(/[\u{270F}]/gu, '')
+    .replace(/[\u{2712}]/gu, '')
+    .replace(/[\u{2714}]/gu, '')
+    .replace(/[\u{2716}]/gu, '')
+    .replace(/[\u{271D}]/gu, '')
+    .replace(/[\u{2721}]/gu, '')
+    .replace(/[\u{2728}]/gu, '')
+    .replace(/[\u{2733}-\u{2734}]/gu, '')
+    .replace(/[\u{2744}]/gu, '')
+    .replace(/[\u{2747}]/gu, '')
+    .replace(/[\u{274C}]/gu, '')
+    .replace(/[\u{274E}]/gu, '')
+    .replace(/[\u{2753}-\u{2755}]/gu, '')
+    .replace(/[\u{2757}]/gu, '')
+    .replace(/[\u{2763}-\u{2764}]/gu, '')
+    .replace(/[\u{2795}-\u{2797}]/gu, '')
+    .replace(/[\u{27A1}]/gu, '')
+    .replace(/[\u{27B0}]/gu, '')
+    .replace(/[\u{27BF}]/gu, '')
+    .replace(/[\u{2934}-\u{2935}]/gu, '')
+    .replace(/[\u{2B05}-\u{2B07}]/gu, '')
+    .replace(/[\u{2B1B}-\u{2B1C}]/gu, '')
+    .replace(/[\u{2B50}]/gu, '*')
+    .replace(/[\u{2B55}]/gu, 'o')
+    .replace(/[\u{3030}]/gu, '~')
+    .replace(/[\u{303D}]/gu, '')
+    .replace(/[\u{3297}]/gu, '')
+    .replace(/[\u{3299}]/gu, '')
     .replace(/→/g, '->')
     .replace(/←/g, '<-')
     .replace(/★/g, '*')
     .replace(/•/g, '-')
     .replace(/·/g, '-')
     .replace(/…/g, '...')
-    // Limpar espaços duplos que podem sobrar
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 // Função para adicionar cabeçalho estilizado
 function addStyledHeader(doc: jsPDF, text: string, yPos: number, pageWidth: number): number {
-  // Fundo colorido para o cabeçalho
-  doc.setFillColor(240, 248, 255); // Azul claro suave
+  doc.setFillColor(240, 248, 255);
   doc.rect(15, yPos - 5, pageWidth - 30, 8, 'F');
   
-  // Texto do cabeçalho
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(41, 98, 155);
@@ -118,6 +122,41 @@ function addSeparatorLine(doc: jsPDF, yPos: number, pageWidth: number): number {
   doc.setLineWidth(0.3);
   doc.line(15, yPos, pageWidth - 15, yPos);
   return yPos + 5;
+}
+
+// Buscar conteúdo de guia turístico via IA
+async function fetchGuideContent(programs: Program[], date: string): Promise<PdfContent | null> {
+  try {
+    // Buscar destino do perfil de viagem
+    const { data: profile } = await supabase
+      .from('travel_profile')
+      .select('destination')
+      .single();
+    
+    const destination = profile?.destination || 'New York City';
+    
+    const { data, error } = await supabase.functions.invoke('generate-pdf-content', {
+      body: {
+        programs: programs.map(p => ({
+          title: p.title,
+          address: p.address,
+          description: p.description,
+        })),
+        date,
+        destination,
+      },
+    });
+
+    if (error) {
+      console.error('Error fetching guide content:', error);
+      return null;
+    }
+
+    return data as PdfContent;
+  } catch (err) {
+    console.error('Failed to fetch guide content:', err);
+    return null;
+  }
 }
 
 export async function generateDayPDF(date: string, userId: string) {
@@ -136,8 +175,10 @@ export async function generateDayPDF(date: string, userId: string) {
       throw new Error('Nenhum programa encontrado para esta data');
     }
 
+    // Buscar conteúdo de guia turístico via IA
+    const guideContent = await fetchGuideContent(programs as Program[], date);
 
-    // Criar o PDF com margens consistentes
+    // Criar o PDF
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
@@ -158,15 +199,44 @@ export async function generateDayPDF(date: string, userId: string) {
       month: 'long',
       year: 'numeric'
     });
-    doc.text(`PROGRAMACAO - ${formattedDate.toUpperCase()}`, pageWidth / 2, yPosition + 3, { align: 'center' });
+    doc.text(`ROTEIRO - ${formattedDate.toUpperCase()}`, pageWidth / 2, yPosition + 3, { align: 'center' });
     yPosition += 20;
+
+    // INTRODUÇÃO DA REGIÃO
+    if (guideContent?.region_intro) {
+      // Nome da região como subtítulo
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(41, 98, 155);
+      doc.text(removeEmojis(guideContent.region_intro.region_name), pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 8;
+
+      // Linha decorativa
+      doc.setDrawColor(41, 98, 155);
+      doc.setLineWidth(0.5);
+      const lineWidth = 60;
+      doc.line((pageWidth - lineWidth) / 2, yPosition, (pageWidth + lineWidth) / 2, yPosition);
+      yPosition += 8;
+
+      // Texto de introdução
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(60, 60, 60);
+      const introLines = doc.splitTextToSize(removeEmojis(guideContent.region_intro.intro_text), contentWidth);
+      doc.text(introLines, margin, yPosition);
+      yPosition += introLines.length * 5 + 10;
+
+      // Separador após introdução
+      yPosition = addSeparatorLine(doc, yPosition, pageWidth);
+      yPosition += 5;
+    }
 
     // Processar cada programa
     for (let i = 0; i < programs.length; i++) {
       const program = programs[i] as Program;
       
       // Verificar se precisa de nova página
-      if (yPosition > pageHeight - 40) {
+      if (yPosition > pageHeight - 50) {
         doc.addPage();
         yPosition = margin + 5;
       }
@@ -205,17 +275,32 @@ export async function generateDayPDF(date: string, userId: string) {
         yPosition += 2;
       }
 
-      // Descrição
-      if (program.description) {
+      // TEXTO DE GUIA TURÍSTICO (substitui o FAQ)
+      const locationGuide = guideContent?.locations?.find(l => l.program_index === i);
+      if (locationGuide?.guide_text) {
+        if (yPosition > pageHeight - 50) {
+          doc.addPage();
+          yPosition = margin + 5;
+        }
+        
+        yPosition = addStyledHeader(doc, '> SOBRE ESTE LOCAL', yPosition, pageWidth);
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
+        doc.setTextColor(40, 40, 40);
+        const guideLines = doc.splitTextToSize(removeEmojis(locationGuide.guide_text), contentWidth - 6);
+        doc.text(guideLines, margin + 3, yPosition);
+        yPosition += guideLines.length * 4 + 5;
+      } else if (program.description) {
+        // Fallback: usar descrição se não tiver guia
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
         const descLines = doc.splitTextToSize(removeEmojis(program.description), contentWidth);
         doc.text(descLines, margin, yPosition);
         yPosition += descLines.length * 4.5 + 5;
       }
 
-      // Notas/Observações
+      // Notas/Observações (mantém)
       if (program.notes) {
         if (yPosition > pageHeight - 50) {
           doc.addPage();
@@ -230,40 +315,6 @@ export async function generateDayPDF(date: string, userId: string) {
         yPosition += notesLines.length * 4 + 5;
       }
 
-
-      // FAQ da IA (completas, sem truncamento)
-      if (program.ai_faq && Array.isArray(program.ai_faq) && program.ai_faq.length > 0) {
-        if (yPosition > pageHeight - 60) {
-          doc.addPage();
-          yPosition = margin + 5;
-        }
-        yPosition = addStyledHeader(doc, '> PERGUNTAS FREQUENTES (FAQ)', yPosition, pageWidth);
-        
-        for (const faq of program.ai_faq) {
-          if (yPosition > pageHeight - 35) {
-            doc.addPage();
-            yPosition = margin + 5;
-          }
-          
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.setTextColor(0, 0, 0);
-          const question = removeEmojis(faq.question);
-          const questionLines = doc.splitTextToSize(`P: ${question}`, contentWidth - 9);
-          doc.text(questionLines, margin + 6, yPosition);
-          yPosition += questionLines.length * 3.5 + 1;
-
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(60, 60, 60);
-          const answer = removeEmojis(faq.answer);
-          const answerLines = doc.splitTextToSize(`R: ${answer}`, contentWidth - 9);
-          doc.text(answerLines, margin + 6, yPosition);
-          yPosition += answerLines.length * 3.5 + 3;
-        }
-        yPosition += 2;
-      }
-
-
       // Linha separadora entre programas
       if (i < programs.length - 1) {
         if (yPosition > pageHeight - 25) {
@@ -274,8 +325,6 @@ export async function generateDayPDF(date: string, userId: string) {
         yPosition += 5;
       }
     }
-
-    // Remover seção de conversas globais (não é mais necessário)
 
     // Rodapé em todas as páginas
     const totalPages = doc.internal.pages.length - 1;
@@ -292,7 +341,7 @@ export async function generateDayPDF(date: string, userId: string) {
     }
 
     // Salvar o PDF
-    const fileName = `programacao-${date}.pdf`;
+    const fileName = `roteiro-${date}.pdf`;
     doc.save(fileName);
 
     return { success: true, fileName };
