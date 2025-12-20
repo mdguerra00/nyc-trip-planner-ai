@@ -2,9 +2,8 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { AiChatRequestSchema } from "../_shared/schemas.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
-import { corsHeaders, withAuth } from "../_shared/auth.ts";
-
-const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+import { withAuth } from "../_shared/auth.ts";
+import { sanitizeInput, validateAndSanitize, sanitizeObject, logSuspiciousInput } from "../_shared/sanitize.ts";
 
 // Tool definitions for program management
 const programTools = [
@@ -65,7 +64,9 @@ const programTools = [
   }
 ];
 
-serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
+serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user, corsHeaders }) => {
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+  
   try {
     const parsedBody = AiChatRequestSchema.safeParse(await req.json());
     if (!parsedBody.success) {
@@ -75,7 +76,24 @@ serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
       );
     }
 
-    const { message, programId, programData } = parsedBody.data;
+    const { programId, programData: rawProgramData } = parsedBody.data;
+    
+    // Sanitize user input to prevent prompt injection
+    const messageValidation = validateAndSanitize(parsedBody.data.message, 'message');
+    const message = messageValidation.value;
+    
+    if (messageValidation.hasSuspiciousContent) {
+      logSuspiciousInput(user.id, 'ai-chat', parsedBody.data.message, 'message');
+    }
+    
+    // Sanitize programData if provided
+    const programData = rawProgramData ? sanitizeObject(rawProgramData, {
+      title: 'title',
+      address: 'address',
+      description: 'description',
+      notes: 'notes',
+    }) : undefined;
+    
     const isGlobalChat = !programId;
     const userId = user.id;
 

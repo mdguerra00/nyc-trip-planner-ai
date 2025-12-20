@@ -1,15 +1,29 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { withAuth, corsHeaders } from "../_shared/auth.ts";
+import { withAuth } from "../_shared/auth.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
+import { sanitizeInput, validateAndSanitize, logSuspiciousInput } from "../_shared/sanitize.ts";
 
-Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
+Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user, corsHeaders }) => {
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+  
   try {
-    const { topic, context: attractionContext, programDate } = await req.json();
+    const rawBody = await req.json();
     const userId = user.id;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       throw new Error("Required environment variables not configured");
+    }
+
+    // Sanitize inputs to prevent prompt injection
+    const topicValidation = validateAndSanitize(rawBody.topic, 'topic');
+    const topic = topicValidation.value;
+    
+    const attractionContext = sanitizeInput(rawBody.context, 'context');
+    const programDate = sanitizeInput(rawBody.programDate, 'generic');
+    
+    if (topicValidation.hasSuspiciousContent) {
+      logSuspiciousInput(userId, 'explore-topic', rawBody.topic, 'topic');
     }
 
     // Build travel context
@@ -67,7 +81,7 @@ Forneça informações adicionais detalhadas e práticas sobre este tópico espe
     console.log("Topic exploration completed successfully");
 
     return new Response(JSON.stringify({ details }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: jsonHeaders,
     });
   } catch (error) {
     console.error("Error in explore-topic function:", error);

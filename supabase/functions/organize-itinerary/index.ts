@@ -1,12 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
-import { corsHeaders, withAuth } from "../_shared/auth.ts";
+import { withAuth } from "../_shared/auth.ts";
 import { OrganizeItineraryRequestSchema } from "../_shared/schemas.ts";
+import { sanitizeObject } from "../_shared/sanitize.ts";
 
-const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
-
-serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
+serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user, corsHeaders }) => {
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+  
   try {
     const parsedBody = OrganizeItineraryRequestSchema.safeParse(await req.json());
     if (!parsedBody.success) {
@@ -16,7 +17,16 @@ serve(withAuth(async ({ req, supabase, supabaseUrl, supabaseKey, user }) => {
       );
     }
 
-    const { selectedAttractions, date, startTime, endTime, region } = parsedBody.data;
+    const { date, startTime, endTime, region } = parsedBody.data;
+    
+    // Sanitize the attractions array to prevent prompt injection
+    const selectedAttractions = parsedBody.data.selectedAttractions.map(attr => 
+      sanitizeObject(attr, {
+        name: 'title',
+        address: 'address',
+        description: 'description',
+      })
+    );
 
     console.log(`🧠 Organizing itinerary for ${date} with ${selectedAttractions.length} attractions`);
 
