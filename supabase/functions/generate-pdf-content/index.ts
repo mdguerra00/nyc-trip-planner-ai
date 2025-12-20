@@ -30,7 +30,7 @@ Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user, corsHeaders })
       .join(", ");
     
     const programsList = (programs as Program[])
-      .map((p, i) => `${i + 1}. ${p.title}${p.address ? ` - ${p.address}` : ""}${p.description ? `: ${p.description}` : ""}`)
+      .map((p, i) => `[${i}] ${p.title}${p.address ? ` - ${p.address}` : ""}${p.description ? `: ${p.description}` : ""}`)
       .join("\n");
 
     const prompt = `Você é um guia turístico experiente e apaixonado. Com base nos programas do dia abaixo, crie conteúdo para um guia de viagem em PDF.
@@ -39,7 +39,7 @@ DESTINO: ${sanitizedDestination}
 DATA: ${sanitizedDate}
 ENDEREÇOS DOS PROGRAMAS: ${addresses}
 
-PROGRAMAS DO DIA:
+PROGRAMAS DO DIA (índice entre colchetes começa em 0):
 ${programsList}
 
 Responda APENAS com um JSON válido no seguinte formato:
@@ -57,6 +57,9 @@ Responda APENAS com um JSON válido no seguinte formato:
 }
 
 IMPORTANTE:
+- O array "locations" DEVE conter exatamente ${(programs as Program[]).length} objetos, um para cada programa
+- program_index DEVE corresponder EXATAMENTE ao número entre colchetes de cada programa (0, 1, 2, ...)
+- O primeiro programa tem program_index: 0, o segundo program_index: 1, etc.
 - region_name deve ser o bairro/região onde estão concentrados os programas
 - intro_text deve contextualizar o visitante sobre a área
 - Para cada programa, crie um guide_text único e informativo
