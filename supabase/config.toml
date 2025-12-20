@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.organize-itinerary]
 verify_jwt = true
+
+[functions.generate-pdf-content]
+verify_jwt = true
