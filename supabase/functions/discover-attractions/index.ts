@@ -1,9 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { withAuth, corsHeaders } from "../_shared/auth.ts";
+import { withAuth } from "../_shared/auth.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
 import { DiscoverAttractionsRequestSchema } from "../_shared/schemas.ts";
-
-const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+import { sanitizeInput, validateAndSanitize, logSuspiciousInput } from "../_shared/sanitize.ts";
 
 // Fallback: usar Lovable AI para converter texto em JSON
 async function convertTextToJson(text: string, region: string, profileContext: string): Promise<any[]> {
@@ -218,7 +217,9 @@ function buildBalancingInstructions(profile: any): string {
   return instructions.join('\n');
 }
 
-Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
+Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user, corsHeaders }) => {
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+  
   try {
     const parsedBody = DiscoverAttractionsRequestSchema.safeParse(await req.json());
     if (!parsedBody.success) {
@@ -228,7 +229,25 @@ Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
       );
     }
 
-    const { region, date, userSuggestion, requestMore } = parsedBody.data;
+    const { date, requestMore } = parsedBody.data;
+    
+    // Sanitize user inputs to prevent prompt injection
+    const regionValidation = validateAndSanitize(parsedBody.data.region, 'region');
+    const region = regionValidation.value;
+    
+    const userSuggestionValidation = parsedBody.data.userSuggestion 
+      ? validateAndSanitize(parsedBody.data.userSuggestion, 'generic')
+      : { value: undefined, hasSuspiciousContent: false };
+    const userSuggestion = userSuggestionValidation.value;
+    
+    // Log suspicious inputs
+    if (regionValidation.hasSuspiciousContent) {
+      logSuspiciousInput(user.id, 'discover-attractions', parsedBody.data.region, 'region');
+    }
+    if (userSuggestionValidation.hasSuspiciousContent && parsedBody.data.userSuggestion) {
+      logSuspiciousInput(user.id, 'discover-attractions', parsedBody.data.userSuggestion, 'userSuggestion');
+    }
+    
     const userId = user.id;
 
     const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');

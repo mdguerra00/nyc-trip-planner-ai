@@ -1,16 +1,23 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { withAuth, corsHeaders } from "../_shared/auth.ts";
+import { withAuth } from "../_shared/auth.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
+import { sanitizeInput } from "../_shared/sanitize.ts";
 
-Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
+Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user, corsHeaders }) => {
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+  
   try {
-    const { suggestions, programDate } = await req.json();
+    const rawBody = await req.json();
     const userId = user.id;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       throw new Error("Required environment variables not configured");
     }
+
+    // Sanitize inputs to prevent prompt injection
+    const suggestions = sanitizeInput(rawBody.suggestions, 'suggestions');
+    const programDate = sanitizeInput(rawBody.programDate, 'generic');
 
     // Build travel context
     const travelContext = await buildTravelContext(
@@ -90,7 +97,7 @@ IMPORTANTE:
     console.log("FAQ generated successfully");
 
     return new Response(JSON.stringify({ faq }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: jsonHeaders,
     });
   } catch (error) {
     console.error("Error in generate-faq function:", error);

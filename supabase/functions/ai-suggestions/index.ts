@@ -1,16 +1,27 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { withAuth, corsHeaders } from "../_shared/auth.ts";
+import { withAuth } from "../_shared/auth.ts";
 import { buildTravelContext, buildContextualPrompt } from "../_shared/context-builder.ts";
+import { sanitizeObject } from "../_shared/sanitize.ts";
 
-Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
+Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user, corsHeaders }) => {
+  const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+  
   try {
-    const { program } = await req.json();
+    const rawBody = await req.json();
     const userId = user.id;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
       throw new Error("Required environment variables not configured");
     }
+
+    // Sanitize program data to prevent prompt injection
+    const program = sanitizeObject(rawBody.program || {}, {
+      title: 'title',
+      address: 'address',
+      description: 'description',
+      notes: 'notes',
+    });
 
     // Build travel context
     const travelContext = await buildTravelContext(
@@ -23,9 +34,9 @@ Deno.serve(withAuth(async ({ req, supabaseUrl, supabaseKey, user }) => {
     const specificContext = `
 O usuário planejou a seguinte atividade:
 
-ATIVIDADE: ${program.title}
+ATIVIDADE: ${program.title || 'Não especificado'}
 LOCAL: ${program.address || "Não especificado"}
-DATA: ${program.date}
+DATA: ${program.date || 'Não especificada'}
 HORÁRIO: ${program.start_time || "Não especificado"} até ${program.end_time || "Não especificado"}
 ${program.description ? `DESCRIÇÃO: ${program.description}` : ""}
 ${program.notes ? `NOTAS: ${program.notes}` : ""}
@@ -90,7 +101,7 @@ Seja específico, factual e considere TODO o perfil do viajante. Organize com ma
     console.log("AI response received successfully");
 
     return new Response(JSON.stringify({ suggestions }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: jsonHeaders,
     });
   } catch (error) {
     console.error("Error in ai-suggestions function:", error);
