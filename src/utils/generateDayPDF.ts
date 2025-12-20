@@ -276,7 +276,9 @@ export async function generateDayPDF(date: string, userId: string) {
       }
 
       // TEXTO DE GUIA TURÍSTICO (substitui o FAQ)
-      const locationGuide = guideContent?.locations?.find(l => l.program_index === i);
+      // Busca por índice exato, ou fallback por posição no array
+      const locationGuide = guideContent?.locations?.find(l => l.program_index === i) 
+        || guideContent?.locations?.[i];
       if (locationGuide?.guide_text) {
         if (yPosition > pageHeight - 50) {
           doc.addPage();
